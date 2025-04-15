@@ -85,16 +85,14 @@ class PlayerStats():
                 player_stats[f'player_{receiving_player}_total_player_distance'] += player_distance
                 player_stats_data.append(player_stats)
 
-        player_stats_data_df = pd.DataFrame(player_stats_data)
+        self.player_stats_data_df = pd.DataFrame(player_stats_data)
         frames_df = pd.DataFrame({'frame_num': list(range(len(mini_player_coordinates)))})
-        player_stats_data_df = pd.merge(frames_df, player_stats_data_df, on='frame_num', how='left')
-        player_stats_data_df = player_stats_data_df.ffill()
-
-        return player_stats_data_df
+        self.player_stats_data_df = pd.merge(frames_df, self.player_stats_data_df, on='frame_num', how='left')
+        self.player_stats_data_df = self.player_stats_data_df.ffill()
     
-    def draw(self, input_frames, player_stats_data_df):
+    def draw(self, input_frames):
         output_frames = []
-        for index, row in player_stats_data_df.iterrows():
+        for index, row in self.player_stats_data_df.iterrows():
             frame = input_frames[index]
             overlay = frame.copy()
             cv2.rectangle(overlay, (self.canvas_x1, self.canvas_y1), (self.canvas_x2, self.canvas_y2), (0, 0, 0), -1)

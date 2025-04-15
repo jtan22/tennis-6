@@ -29,7 +29,7 @@ class CourtLineDetector:
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
-    def predict(self, image):
+    def predict_keypoints(self, image):
         # Convert the image to RGB format and apply the transformations
         # Note: The input image should be in BGR format
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -62,8 +62,18 @@ class CourtLineDetector:
         # and we need to scale the keypoints to that size
         keypoints[::2] *= original_w / 224.0
         keypoints[1::2] *= original_h / 224.0
-        return [(int(keypoints[i]), int(keypoints[i + 1])) for i in range(0, len(keypoints), 2)]
+        self.predicted_keypoints = [(int(keypoints[i]), int(keypoints[i + 1])) for i in range(0, len(keypoints), 2)]
 
+    def refine_keypoints(self, image):
+        self.refined_keypoints = []
+        index = 0
+        for keypoint in self.predicted_keypoints:
+            if index not in [8, 12, 9]:
+                self.refined_keypoints.append(self.refine_keypoint(image, keypoint))
+            else:
+                self.refined_keypoints.append(None)
+            index += 1
+        
     def refine_keypoint(self, image, keypoint, crop_size = 40):
         refined_x, refined_y = keypoint[0], keypoint[1]
         height, width = image.shape[:2]
@@ -133,29 +143,21 @@ class CourtLineDetector:
                 new_lines.append(line)  
         return new_lines       
 
-    def refine_keypoints(self, image, keypoints):
-        refined_keypoints = []
-        index = 0
-        for keypoint in keypoints:
-            if index not in [8, 12, 9]:
-                refined_keypoints.append(self.refine_keypoint(image, keypoint))
-            else:
-                refined_keypoints.append(None)
-            index += 1
-        return refined_keypoints
-        
+    def set_homographied_keypoints(self, homographied_keypoints):
+        self.homographied_keypoints = homographied_keypoints
+
     # Draw keypoints on the image    
-    def draw_keypoints(self, image, keypoints):
-        for keypoint in keypoints:
+    def draw_keypoints(self, image):
+        for keypoint in self.homographied_keypoints:
             cv2.circle(image, keypoint, 5, (255, 0, 0), -1)
         return image
     
     # Draw keypoints on the video frames
     # Note: The input video frames should be in BGR format
-    def draw(self, video_frames, keypoints):
+    def draw(self, video_frames):
         output_video_frames = []
         for frame in video_frames:
-            frame = self.draw_keypoints(frame, keypoints)
+            frame = self.draw_keypoints(frame)
             output_video_frames.append(frame)
         return output_video_frames
     

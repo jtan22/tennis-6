@@ -5,6 +5,7 @@ import pandas as pd
 import torch
 from .utils import get_bounding_box_center_point, get_distance_between_point_and_line, get_distance_between_points
 import numpy as np
+import copy
 
 # This class is used to track the ball in a video using YOLOv8 model
 # It uses the YOLOv8 model to detect the ball in each frame of the video
@@ -73,6 +74,7 @@ import numpy as np
 # x = (Vt^2/g)*ln((Vt^2_g*U0*t)/Vt^2)
 #
 class BallTracker:
+    
     def __init__(self, model_path):
         self.model = YOLO(model_path)
         device = torch.device('mps' if torch.mps.is_available() else 'cuda' if torch.cuda.is_available else 'cpu')
@@ -80,22 +82,23 @@ class BallTracker:
 
     # Detect ball positions in a list of frames
     def dectect_ball_positions_all_frames(self, frames, read_from_stub=False, stub_path=None):
-        ball_positions_all_frames = []
         if read_from_stub and stub_path is not None:
             # Read frames from stub
             with open(stub_path, 'rb') as f:
-                ball_positions_all_frames = pickle.load(f)
-            return ball_positions_all_frames
+                self.multiple_ball_positions = pickle.load(f)
+            print(f'Loaded multiple ball positions size: {len(self.multiple_ball_positions)}')
+            return
             
+        self.multiple_ball_positions = []
         for frame in frames:
-            ball_positions_all_frames.append(self.detect_ball_positions_per_frame(frame))
-        self.remove_all_extra_balls_detected(ball_positions_all_frames)
+            self.multiple_ball_positions.append(self.detect_ball_positions_per_frame(frame))
+        print(f'Detected multiple ball positions size: {len(self.multiple_ball_positions)}')
 
         if stub_path is not None:
             # Save frames to stub
             with open(stub_path, 'wb') as f:
-                pickle.dump(ball_positions_all_frames, f)
-        return ball_positions_all_frames
+                pickle.dump(self.multiple_ball_positions, f)
+            return
 
     # Detect ball positions in a single frame
     # Returns a dictionary with track IDs as keys and bounding boxes as values
@@ -106,7 +109,7 @@ class BallTracker:
         # The model will return a list of results, we take the first one
         # The 'conf' parameter is set to 0.15 to filter out low-confidence detections
         results = self.model.predict(frame, conf=0.15)[0]
-        ball_positions_per_frame = {}
+        ball_positions = {}
         track_id = 1
         for box in results.boxes:
             # print(box)
@@ -115,38 +118,40 @@ class BallTracker:
             # contains the coordinates of the bounding box in the format [x1, y1, x2, y2]
             bounding_box = box.xyxy.tolist()[0]
             # We only track 1 ball here, so the track ID is set to 1
-            ball_positions_per_frame[track_id] = bounding_box
+            ball_positions[track_id] = bounding_box
             track_id += 1
-        return ball_positions_per_frame
+        return ball_positions
 
-    def remove_all_extra_balls_detected(self, ball_positions_all_frames):
-        for i, ball_positions in enumerate(ball_positions_all_frames):
+    def remove_all_extra_balls_detected(self):
+        self.single_ball_positions = copy.deepcopy(self.multiple_ball_positions)
+        for i, ball_positions in enumerate(self.single_ball_positions):
             if len(ball_positions) < 2:
                 continue
-            last_ball_position = self.find_last_ball_position(ball_positions_all_frames, i)
+            last_ball_position = self.find_last_ball_position(i)
             if last_ball_position is None:
-                ball_positions_all_frames[i] = {1:ball_positions[1]}
+                self.ball_positions[i] = {1:ball_positions[1]}
                 continue
-            next_ball_position = self.find_next_ball_position(ball_positions_all_frames, i)
+            next_ball_position = self.find_next_ball_position(i)
             if next_ball_position is None:
-                ball_positions_all_frames[i] = {1:ball_positions[1]}
+                self.single_ball_positions[i] = {1:ball_positions[1]}
                 continue
-            ball_positions_all_frames[i] = {1:self.find_best_ball_position(last_ball_position, ball_positions, next_ball_position)}
+            self.single_ball_positions[i] = {1:self.find_best_ball_position(last_ball_position, ball_positions, next_ball_position)}
+        print(f'Single ball positions size: {len(self.single_ball_positions)}')
 
-    def find_last_ball_position(self, ball_positions_all_frames, index):
+    def find_last_ball_position(self, index):
         if index == 0:
             return None
         for i in range(index - 1, 0, -1):
-            if len(ball_positions_all_frames[i]) == 1:
-                return ball_positions_all_frames[i][1]
+            if len(self.multiple_ball_positions[i]) == 1:
+                return self.multiple_ball_positions[i][1]
         return None
 
-    def find_next_ball_position(self, ball_positions_all_frames, index):
-        if index == len(ball_positions_all_frames) - 1:
+    def find_next_ball_position(self, index):
+        if index == len(self.multiple_ball_positions) - 1:
             return None
-        for i in range(index + 1, len(ball_positions_all_frames)):
-            if len(ball_positions_all_frames[i]) == 1:
-                return ball_positions_all_frames[i][1]
+        for i in range(index + 1, len(self.multiple_ball_positions)):
+            if len(self.multiple_ball_positions[i]) == 1:
+                return self.multiple_ball_positions[i][1]
         return None
 
     def find_best_ball_position(self, last_ball_position, ball_positions, next_ball_position):
@@ -162,67 +167,47 @@ class BallTracker:
                 best_ball_id = id
         return ball_positions[best_ball_id]
 
-    def interpolate_ball_positions(self, ball_positions_all_frames):
+    def interpolate_ball_positions(self):
         # print('Interpolating ball positions: ', ball_positions_all_frames)
         # The list comprehension extracts the bounding boxes from the dictionaries
         # and creates a list of lists, if the track ID '1' is missing in the dictionary,
         # it returns an empty list
-        bounding_boxes_all_frames = [x.get(1,[]) for x in ball_positions_all_frames]
+        bounding_boxes = [x.get(1,[]) for x in self.single_ball_positions]
         # Convert the list of lists to a DataFrame
         # The DataFrame will have columns ['x1', 'y1', 'x2', 'y2']
-        bounding_boxes_data_frame = pd.DataFrame(bounding_boxes_all_frames, columns=['x1','y1','x2','y2'])
-
-        bounding_boxes_data_frame['width'] = bounding_boxes_data_frame['x2'] - bounding_boxes_data_frame['x1']
-        bounding_boxes_data_frame['height'] = bounding_boxes_data_frame['y2'] - bounding_boxes_data_frame['y1']
-        average_width = bounding_boxes_data_frame['width'].mean()
-        print(f"Average Width: {average_width}")
-        average_height = bounding_boxes_data_frame['height'].mean()
-        print(f"Average Height: {average_height}")
-        bounding_boxes_data_frame.drop(columns=['width', 'height'], inplace=True)
+        df = pd.DataFrame(bounding_boxes, columns=['x1','y1','x2','y2'])
 
         # Interpolate the missing values in the DataFrame
         # The 'interpolate' method will fill the missing values using linear interpolation
-        bounding_boxes_data_frame = bounding_boxes_data_frame.interpolate()
+        df = df.interpolate()
         # The 'bfill' method will fill the missing values using backward fill
-        bounding_boxes_data_frame = bounding_boxes_data_frame.bfill()
+        df = df.bfill()
         # The 'ffill' method will fill the missing values using forward fill
-        bounding_boxes_data_frame = bounding_boxes_data_frame.ffill()
+        df = df.ffill()
 
         # Convert the DataFrame back to a NumPy array, then to a list of lists
         # The list comprehension creates a list of dictionaries
         # where each dictionary has track ID '1' as key and the bounding box as value
-        ball_positions_all_frames = [{1:x} for x in bounding_boxes_data_frame.to_numpy().tolist()]
-
-        # print('Interpolated ball positions: ', ball_positions_all_frames)
-        return ball_positions_all_frames
+        self.complete_ball_positions = [{1:x} for x in df.to_numpy().tolist()]
+        print(f'Interpolated ball positions size: {self.complete_ball_positions}')
     
-    def custom_interpolate_ball_positions(self, ball_positions_all_frames):
-        bounding_boxes_all_frames = [x.get(1,[]) for x in ball_positions_all_frames]
+    def custom_interpolate_ball_positions(self):
+        bounding_boxes = [x.get(1,[]) for x in self.single_ball_positions]
 
-        average_bounding_box_size = self.get_average_bounding_box_size(bounding_boxes_all_frames)
-        missing_ranges = self.find_missing_ranges(bounding_boxes_all_frames)
+        missing_ranges = self.find_missing_ranges(bounding_boxes)
         for missing_ranges in missing_ranges:
-            self.interpolate_missing_range(missing_ranges, bounding_boxes_all_frames, average_bounding_box_size)
+            self.interpolate_missing_range(missing_ranges, bounding_boxes)
 
-        bounding_boxes_data_frame = pd.DataFrame(bounding_boxes_all_frames, columns=['x1','y1','x2','y2'])
-        bounding_boxes_data_frame = bounding_boxes_data_frame.bfill()
-        bounding_boxes_data_frame = bounding_boxes_data_frame.ffill()
-        ball_positions_all_frames = [{1:x} for x in bounding_boxes_data_frame.to_numpy().tolist()]
-        return ball_positions_all_frames
+        df = pd.DataFrame(bounding_boxes, columns=['x1','y1','x2','y2'])
+        df = df.bfill()
+        df = df.ffill()
+        self.complete_ball_positions = [{1:x} for x in df.to_numpy().tolist()]
+        print(f'Custom interpolated ball positions size: {len(self.complete_ball_positions)}')
 
-    def get_average_bounding_box_size(self, bounding_boxes_all_frames):
-        bounding_boxes_data_frame = pd.DataFrame(bounding_boxes_all_frames, columns=['x1','y1','x2','y2'])
-
-        bounding_boxes_data_frame['width'] = bounding_boxes_data_frame['x2'] - bounding_boxes_data_frame['x1']
-        bounding_boxes_data_frame['height'] = bounding_boxes_data_frame['y2'] - bounding_boxes_data_frame['y1']
-        average_width = bounding_boxes_data_frame['width'].mean()
-        average_height = bounding_boxes_data_frame['height'].mean()
-        return (average_width, average_height)
-
-    def find_missing_ranges(self, bounding_boxes_all_frames):
+    def find_missing_ranges(self, bounding_boxes):
         missing_ranges = []
         start_index = None
-        for i, bounding_box in enumerate(bounding_boxes_all_frames):
+        for i, bounding_box in enumerate(bounding_boxes):
             if len(bounding_box) == 0:
                 if start_index is None:
                     start_index = i
@@ -234,9 +219,9 @@ class BallTracker:
             missing_ranges = missing_ranges[1:]
         return missing_ranges
 
-    def interpolate_missing_range(self, missing_range, bounding_boxes_all_frames, average_bounding_box_size):
-        start_bounding_box = bounding_boxes_all_frames[missing_range[0] - 1]
-        end_bounding_box = bounding_boxes_all_frames[missing_range[1] + 1]
+    def interpolate_missing_range(self, missing_range, bounding_boxes):
+        start_bounding_box = bounding_boxes[missing_range[0] - 1]
+        end_bounding_box = bounding_boxes[missing_range[1] + 1]
         start_position = get_bounding_box_center_point(start_bounding_box)
         end_position = get_bounding_box_center_point(end_bounding_box)
         steps = missing_range[1] - missing_range[0] + 3
@@ -244,13 +229,15 @@ class BallTracker:
         sequence_x = sequence_x[1:-1]
         sequence_y = self.exponential_deceleration(start_position[1], end_position[1], steps)
         sequence_y = sequence_y[1:-1]
+        width = ((start_bounding_box[2] - start_bounding_box[0]) + (end_bounding_box[2] - end_bounding_box[0])) / 2
+        height = ((start_bounding_box[3] - start_bounding_box[1]) + (end_bounding_box[3] - end_bounding_box[1])) / 2
         for i in range(len(sequence_x)):
             bounding_box = [
-                sequence_x[i] - average_bounding_box_size[0] / 2, 
-                sequence_y[i] - average_bounding_box_size[1] / 2, 
-                sequence_x[i] + average_bounding_box_size[0] / 2, 
-                sequence_y[i] + average_bounding_box_size[1] / 2]
-            bounding_boxes_all_frames[missing_range[0] + i] = bounding_box
+                sequence_x[i] - width / 2, 
+                sequence_y[i] - height / 2, 
+                sequence_x[i] + width / 2, 
+                sequence_y[i] + height / 2]
+            bounding_boxes[missing_range[0] + i] = bounding_box
 
     def exponential_deceleration(self, start, end, steps, exponent=1.5):
         if steps <= 0:
@@ -260,30 +247,30 @@ class BallTracker:
         sequence = [start + (end - start) * (1 - (1 - i / (steps - 1)) ** exponent) for i in range(steps)]
         return sequence
 
-    def get_ball_shot_frame_indexes(self, ball_positions_all_frames):
-        bounding_boxes_all_frames = [x.get(1, []) for x in ball_positions_all_frames]
+    def find_ball_shot_frame_numbers(self):
+        bounding_boxes = [x.get(1, []) for x in self.complete_ball_positions]
         # convert the list into pandas dataframe
-        bounding_boxes = pd.DataFrame(bounding_boxes_all_frames, columns=['x1','y1','x2','y2'])
+        df = pd.DataFrame(bounding_boxes, columns=['x1','y1','x2','y2'])
 
-        bounding_boxes['mid_y'] = (bounding_boxes['y1'] + bounding_boxes['y2']) / 2
-        bounding_boxes['mid_y_rolling_mean'] = bounding_boxes['mid_y'].rolling(window = 5, min_periods = 1, center = False).mean()
-        bounding_boxes['delta_y'] = bounding_boxes['mid_y_rolling_mean'].diff()
-        bounding_boxes['ball_hit'] = 0
+        df['mid_y'] = (df['y1'] + df['y2']) / 2
+        df['mid_y_rolling_mean'] = df['mid_y'].rolling(window = 5, min_periods = 1, center = False).mean()
+        df['delta_y'] = df['mid_y_rolling_mean'].diff()
+        df['ball_hit'] = 0
 
         # print(bounding_boxes)
 
         minimum_change_frames_for_hit = 25
-        for i in range(1, len(bounding_boxes) - int(minimum_change_frames_for_hit * 1.2)):
-            negative_change = bounding_boxes.at[i, 'delta_y'] > 0 and bounding_boxes.at[i+1, 'delta_y'] < 0
-            positive_change = bounding_boxes.at[i, 'delta_y'] < 0 and bounding_boxes.at[i+1, 'delta_y'] > 0
+        for i in range(1, len(df) - int(minimum_change_frames_for_hit * 1.2)):
+            negative_change = df.at[i, 'delta_y'] > 0 and df.at[i+1, 'delta_y'] < 0
+            positive_change = df.at[i, 'delta_y'] < 0 and df.at[i+1, 'delta_y'] > 0
 
             if negative_change or positive_change:
                 change_count = 0
                 # Count how many following frames have the same change
                 # In this case, if 25 out of 30 frames have the same change, we consider it a hit 
                 for j in range(i + 1, i + int(minimum_change_frames_for_hit * 1.2) + 1):
-                    still_negative = bounding_boxes.at[i, 'delta_y'] > 0 and bounding_boxes.at[j, 'delta_y'] < 0
-                    still_positive = bounding_boxes.at[i, 'delta_y'] < 0 and bounding_boxes.at[j, 'delta_y'] > 0
+                    still_negative = df.at[i, 'delta_y'] > 0 and df.at[j, 'delta_y'] < 0
+                    still_positive = df.at[i, 'delta_y'] < 0 and df.at[j, 'delta_y'] > 0
 
                     if negative_change and still_negative:
                         change_count += 1
@@ -291,12 +278,13 @@ class BallTracker:
                         change_count += 1
             
                 if change_count >= minimum_change_frames_for_hit:
-                    bounding_boxes.loc[i, 'ball_hit'] = 1
+                    df.loc[i, 'ball_hit'] = 1
 
-        return bounding_boxes[bounding_boxes['ball_hit'] == 1].index.tolist()
+        self.ball_shot_frame_numbers = df[df['ball_hit'] == 1].index.tolist()
+        print(f'Ball shot frame numbers: {self.ball_shot_frame_numbers}')
 
-    def get_ball_hits(self, ball_positions_all_frames):
-        bounding_boxes = [x.get(1, []) for x in ball_positions_all_frames]
+    def get_ball_hits(self):
+        bounding_boxes = [x.get(1, []) for x in self.complete_ball_positions]
         centre_points = []
         for bounding_box in bounding_boxes:
             centre_points.append(get_bounding_box_center_point(bounding_box))
@@ -330,10 +318,10 @@ class BallTracker:
         df.to_csv('ball_trajectory_data.csv', index=False)
 
     # Draw bounding boxes on the frames
-    def draw(self, input_frames, ball_positions_all_frames):
+    def draw(self, input_frames):
         output_frames = []
-        for frame, ball_positions_per_frame in zip(input_frames, ball_positions_all_frames):
-            for track_id, bounding_box in ball_positions_per_frame.items():
+        for frame, ball_position in zip(input_frames, self.complete_ball_positions):
+            for track_id, bounding_box in ball_position.items():
                 # Tuple unpacking of the bounding box
                 x1, y1, x2, y2 = bounding_box
                 # Convert the bounding box coordinates to integers
@@ -345,7 +333,6 @@ class BallTracker:
                 # The track ID is drawn in red color with a thickness of 2
                 # The text is drawn 10 pixels above the bounding box
                 # The font scale is set to 1
-                cv2.putText(frame, str(track_id), (x1, y1 - 10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                cv2.putText(frame, str(track_id), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             output_frames.append(frame)
         return output_frames

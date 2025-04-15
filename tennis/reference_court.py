@@ -81,8 +81,8 @@ class ReferenceCourt():
             [10, 11, 5, 7]   # bottom no mans land
         ]
 
-    def get_homographied_keypoints(self, given_keypoints):
-        best_matrix = None
+    def homograph_keypoints(self, given_keypoints):
+        self.homography_matrix = None
         distance_max = np.inf
         reference_keypoints = np.array(self.keypoints, dtype=np.float32).reshape((-1, 1, 2))
         for homography_point in self.homography_points:
@@ -109,55 +109,59 @@ class ReferenceCourt():
                         distances.append(distance.euclidean(given_keypoints[i], transformed_keypoints[i][0]))
                 distance_median = np.mean(distances)
                 if distance_median < distance_max:
-                    best_matrix = matrix
+                    self.homography_matrix = matrix
                     distance_max = distance_median
+        self.inverse_homography_matrix = np.linalg.inv(self.homography_matrix)
         # best_keypoints is a list of list [[x1 y1], [x2 y2], ...]
-        best_keypoints = cv2.perspectiveTransform(reference_keypoints, best_matrix)
+        best_keypoints = cv2.perspectiveTransform(reference_keypoints, self.homography_matrix)
         # turn best_keypoints into a list of tuples [(x1, y1), (x2, y2), ...]
-        best_keypoints = [tuple(map(int, point)) for point in best_keypoints.reshape(-1, 2)]
+        self.homographied_keypoints = [tuple(map(int, point)) for point in best_keypoints.reshape(-1, 2)]
         # We preserve the refined keypoints from the given keypoints which are better than the
         # predicted keypoints. We only use the keypoints which refined keypoints can work out.
-        for i in range(len(best_keypoints)):
+        for i in range(len(self.homographied_keypoints)):
             if given_keypoints[i] is not None:
-                best_keypoints[i] = given_keypoints[i]
-        return best_keypoints, best_matrix
+                self.homographied_keypoints[i] = given_keypoints[i]
 
-    def get_reference_court_coordinate(self, original_coordinate, homography_matrix):
-        original_coordinate = np.array(original_coordinate, dtype=np.float32).reshape((-1, 1, 2))
-        reference_coordinate = cv2.perspectiveTransform(original_coordinate, homography_matrix)
-        reference_coordinate = reference_coordinate[0][0]
-        return int(reference_coordinate[0]), int(reference_coordinate[1])
+    def convert_player_coordinates(self, player_positions):
+        self.player_coordinates = self.convert_to_reference_court_coordinates(player_positions)
 
-    def convert_to_reference_court_coordinates(self, positions_all_frames, homography_matrix):
+    def convert_ball_coordinates(self, ball_positions):
+        self.ball_coordinates = self.convert_to_reference_court_coordinates(ball_positions)
+
+    def convert_to_reference_court_coordinates(self, positions_all_frames):
         reference_coordinates = []
         for frame_number, positions_per_frame in enumerate(positions_all_frames):
             reference_coordinates_per_frame = {}
             for track_id, bounding_box in positions_per_frame.items():
                 original_coordinate = get_bottom_line_center_point(bounding_box)
-                reference_coordinate = self.get_reference_court_coordinate(original_coordinate, homography_matrix)
+                reference_coordinate = self.get_reference_court_coordinate(original_coordinate)
                 reference_coordinates_per_frame[track_id] = reference_coordinate
             reference_coordinates.append(reference_coordinates_per_frame)
         return reference_coordinates
 
-    def convert_to_reference_court_coordinates_old(self, player_positions_all_frames, ball_positions_all_frames, homography_matrix):
-        reference_player_coordinates = []
-        reference_ball_coordinates = []
-        for frame_number, player_positions_per_frame in enumerate(player_positions_all_frames):
-            # print(f'Frame {frame_number}: {player_positions_per_frame}')
-            reference_player_coordinates_per_frame = {}
-            for player_id, player_bounding_box in player_positions_per_frame.items():
-                original_player_coordinate = get_bottom_line_center_point(player_bounding_box)
-                reference_player_coordinate = self.get_reference_court_coordinate(original_player_coordinate, homography_matrix)
-                reference_player_coordinates_per_frame[player_id] = reference_player_coordinate
-                # print(f"mini_player_coordinates_frame: {mini_player_coordinates_per_frame}")
-            reference_player_coordinates.append(reference_player_coordinates_per_frame)
+    def get_reference_court_coordinate(self, original_coordinate):
+        original_coordinate = np.array(original_coordinate, dtype=np.float32).reshape((-1, 1, 2))
+        reference_coordinate = cv2.perspectiveTransform(original_coordinate, self.inverse_homography_matrix)
+        reference_coordinate = reference_coordinate[0][0]
+        return int(reference_coordinate[0]), int(reference_coordinate[1])
 
-            ball_bounding_box = ball_positions_all_frames[frame_number][1]
-            original_ball_coordinate = get_bounding_box_center_point(ball_bounding_box)
-            reference_ball_coordinate = self.get_reference_court_coordinate(original_ball_coordinate, homography_matrix)
-            reference_ball_coordinates.append({1:(reference_ball_coordinate[0], reference_ball_coordinate[1])})
+    def draw(self, input_frames):
+        output_frames = []
+        for frame_number, frame in enumerate(input_frames):
+            frame = self.draw_canvas(frame)
+            frame = self.draw_court(frame)
+            self.draw_coordinates(frame, frame_number, self.player_coordinates, 1, 10, color=(0, 0, 255))
+            self.draw_coordinates(frame, frame_number, self.player_coordinates, 2, 10, color=(255, 0, 0))
+            self.draw_coordinates(frame, frame_number, self.ball_coordinates, 1, 5, color=(0, 255, 0))
+            output_frames.append(frame)
+        return output_frames
 
-        return reference_player_coordinates, reference_ball_coordinates, self.canvas_width    
+    def draw_coordinates(self, frame, frame_number, coordinates, id, size, color=(0, 255, 0)):
+        for track_id, coordinate in coordinates[frame_number].items():
+            if track_id == id:
+                x = int(coordinate[0] + self.canvas_x1)
+                y = int(coordinate[1] + self.canvas_y1)
+                cv2.circle(frame, (x, y), size, color, -1)
 
     def draw_court(self, frame):
         # Draw Lines
@@ -207,21 +211,3 @@ class ReferenceCourt():
 
         return outout_frame
 
-    def draw(self, input_frames):
-        output_frames = []
-
-        for frame in input_frames:
-            frame = self.draw_canvas(frame)
-            frame = self.draw_court(frame)
-            output_frames.append(frame)
-
-        return output_frames
-
-    def draw_coordinates(self, input_frames, coordinates, id, size, color=(0, 255, 0)):
-        for frame_number, frame in enumerate(input_frames):
-            for track_id, coordinate in coordinates[frame_number].items():
-                if track_id == id:
-                    x = int(coordinate[0] + self.canvas_x1)
-                    y = int(coordinate[1] + self.canvas_y1)
-                    cv2.circle(frame, (x, y), size, color, -1)
-        return input_frames

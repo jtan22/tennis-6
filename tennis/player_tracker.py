@@ -10,35 +10,23 @@ class PlayerTracker:
         device = torch.device('mps' if torch.mps.is_available() else 'cuda' if torch.cuda.is_available else 'cpu')
         self.model.to(device)
 
-    def filter_out_non_players(self, court_keypoints, person_positions_all_frames):
-        person_positions_first_frame = person_positions_all_frames[0]
-        chosen_players = self.choose_players(court_keypoints, person_positions_first_frame)
-        player_positions_all_frame = []
-        for person_positions_per_frame in person_positions_all_frames:
-            player_positions_per_frame = {track_id: bounding_box 
-                    for track_id, bounding_box in person_positions_per_frame.items() 
-                    if track_id in chosen_players}
-            player_positions_all_frame.append(player_positions_per_frame)
-        return player_positions_all_frame
+    # Detect players in a list of frames
+    def dectect_person_positions_all_frames(self, frames, read_from_stub=False, stub_path=None):
+        if read_from_stub and stub_path is not None:
+            # Read frames from stub
+            with open(stub_path, 'rb') as f:
+                self.person_positions = pickle.load(f)
+            return
+            
+        self.person_positions = []
+        for frame in frames:
+            self.person_positions.append(self.detect_person_positions_per_frame(frame))
 
-    # Choose 2 persons have the shortest distance to any of the baselines
-    def choose_players(self, court_keypoints, person_positions_per_frame):
-        distances = []
-        for track_id, bounding_box in person_positions_per_frame.items():
-            person_bottom_center = get_bottom_line_center_point(bounding_box)
-            if person_bottom_center[0] < court_keypoints[2][0] or person_bottom_center[0] > court_keypoints[3][0]:
-                continue
-            min_distance = abs(person_bottom_center[1] - court_keypoints[0][1])
-            distance = abs(person_bottom_center[1] - court_keypoints[2][1])
-            if distance < min_distance:
-                min_distance = distance
-            distances.append((track_id, min_distance))
-        
-        # Sort the distances in ascending order
-        distances.sort(key = lambda x: x[1])
-        # Choose the first 2 track_ids
-        first_2_track_ids = [distances[0][0], distances[1][0]]
-        return first_2_track_ids
+        if stub_path is not None:
+            # Save frames to stub
+            with open(stub_path, 'wb') as f:
+                pickle.dump(self.person_positions, f)
+            return
 
     # Detect players in a single frame
     # Returns a dictionary with track IDs as keys and bounding boxes as values
@@ -66,30 +54,40 @@ class PlayerTracker:
                 person_positions_per_frame[track_id] = bounding_box
         return person_positions_per_frame
     
-    # Detect players in a list of frames
-    def dectect_person_positions_all_frames(self, frames, read_from_stub=False, stub_path=None):
-        person_positions_all_frame = []
-        if read_from_stub and stub_path is not None:
-            # Read frames from stub
-            with open(stub_path, 'rb') as f:
-                person_positions_all_frame = pickle.load(f)
-            return person_positions_all_frame
-            
-        for frame in frames:
-            person_positions_all_frame.append(self.detect_person_positions_per_frame(frame))
+    def filter_out_non_players(self, court_keypoints):
+        person_positions_first_frame = self.person_positions[0]
+        chosen_players = self.choose_players(court_keypoints, person_positions_first_frame)
+        self.player_positions = []
+        for person_positions_per_frame in self.person_positions:
+            player_positions_per_frame = {track_id: bounding_box 
+                    for track_id, bounding_box in person_positions_per_frame.items() 
+                    if track_id in chosen_players}
+            self.player_positions.append(player_positions_per_frame)
 
-        if stub_path is not None:
-            # Save frames to stub
-            with open(stub_path, 'wb') as f:
-                pickle.dump(person_positions_all_frame, f)
-                
-        return person_positions_all_frame
+    # Choose 2 persons have the shortest distance to any of the baselines
+    def choose_players(self, court_keypoints, person_positions_per_frame):
+        distances = []
+        for track_id, bounding_box in person_positions_per_frame.items():
+            person_bottom_center = get_bottom_line_center_point(bounding_box)
+            if person_bottom_center[0] < court_keypoints[2][0] or person_bottom_center[0] > court_keypoints[3][0]:
+                continue
+            min_distance = abs(person_bottom_center[1] - court_keypoints[0][1])
+            distance = abs(person_bottom_center[1] - court_keypoints[2][1])
+            if distance < min_distance:
+                min_distance = distance
+            distances.append((track_id, min_distance))
+        
+        # Sort the distances in ascending order
+        distances.sort(key = lambda x: x[1])
+        # Choose the first 2 track_ids
+        first_2_track_ids = [distances[0][0], distances[1][0]]
+        return first_2_track_ids
 
     # Draw bounding boxes on the frames
-    def draw(self, input_frames, person_positions_all_frame):
+    def draw(self, input_frames):
         output_frames = []
-        for frame, person_positions_per_frame in zip(input_frames, person_positions_all_frame):
-            for track_id, bounding_box in person_positions_per_frame.items():
+        for frame, player_positions_per_frame in zip(input_frames, self.player_positions):
+            for track_id, bounding_box in player_positions_per_frame.items():
                 x1, y1, x2, y2 = bounding_box
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
                 # Draw the bounding box on the frame
