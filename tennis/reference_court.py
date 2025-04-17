@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from scipy.spatial import distance
-from .utils import get_bottom_line_center_point, get_bounding_box_center_point
+from .utils import get_bottom_line_center_point
 from .constants import DOUBLES_LINE_WIDTH, DOUBLES_ALLEY_WIDTH, RUN_BACK_DEPTH, \
     SIDE_RUN_WIDTH, HALF_COURT_DEPTH, NO_MANS_LAND_DEPTH, REFERENCE_COURT_MARGIN_X, \
     REFERENCE_COURT_MARGIN_Y, CENTER_LINE_DEPTH
@@ -123,27 +123,33 @@ class ReferenceCourt():
                 self.homographied_keypoints[i] = given_keypoints[i]
 
     def convert_player_coordinates(self, player_positions):
-        self.player_coordinates = self.convert_to_reference_court_coordinates(player_positions)
+        self.player_coordinates = self.convert_to_reference_coordinates(player_positions)
 
     def convert_ball_coordinates(self, ball_positions):
-        self.ball_coordinates = self.convert_to_reference_court_coordinates(ball_positions)
+        self.ball_coordinates = self.convert_to_reference_coordinates(ball_positions)
 
-    def convert_to_reference_court_coordinates(self, positions_all_frames):
+    def convert_to_reference_coordinates(self, positions_all_frames):
         reference_coordinates = []
         for frame_number, positions_per_frame in enumerate(positions_all_frames):
             reference_coordinates_per_frame = {}
             for track_id, bounding_box in positions_per_frame.items():
                 original_coordinate = get_bottom_line_center_point(bounding_box)
-                reference_coordinate = self.get_reference_court_coordinate(original_coordinate)
+                reference_coordinate = self.get_reference_coordinate(original_coordinate)
                 reference_coordinates_per_frame[track_id] = reference_coordinate
             reference_coordinates.append(reference_coordinates_per_frame)
         return reference_coordinates
 
-    def get_reference_court_coordinate(self, original_coordinate):
+    def get_reference_coordinate(self, original_coordinate):
         original_coordinate = np.array(original_coordinate, dtype=np.float32).reshape((-1, 1, 2))
         reference_coordinate = cv2.perspectiveTransform(original_coordinate, self.inverse_homography_matrix)
         reference_coordinate = reference_coordinate[0][0]
         return int(reference_coordinate[0]), int(reference_coordinate[1])
+
+    def get_original_coordinate(self, reference_coordinate):
+        reference_coordinate = np.array(reference_coordinate, dtype=np.float32).reshape((-1, 1, 2))
+        original_coordinate = cv2.perspectiveTransform(reference_coordinate, self.homography_matrix)
+        original_coordinate = original_coordinate[0][0]
+        return int(original_coordinate[0]), int(original_coordinate[1])
 
     def draw(self, input_frames):
         output_frames = []

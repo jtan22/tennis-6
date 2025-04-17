@@ -20,10 +20,7 @@ def main():
     print('Processing ball tracker...')
     ball_tracker = BallTracker(model_path='models/ball/train-5l6u-10-64/weights/last-378-213.pt')
     ball_tracker.dectect_ball_positions_all_frames(input_frames, read_from_stub=True, stub_path='tracker_stubs/ball_detections.pkl')
-    ball_tracker.remove_all_extra_balls_detected()
-    ball_tracker.custom_interpolate_ball_positions()
-    ball_tracker.find_ball_shot_frame_numbers()
-    ball_tracker.get_ball_hits()
+    ball_tracker.analyse_ball_positions_all_frames(fps)
 
     print('Processing court line detector...')
     court_line_detector = CourtLineDetector('models/keypoints/keypoints_model_resnet50_epoch20_cuda.pth')
@@ -45,7 +42,7 @@ def main():
     player_stats = PlayerStats(450, reference_court.canvas_width)
     player_stats.collect_stats(reference_court.player_coordinates, reference_court.ball_coordinates, ball_tracker.ball_shot_frame_numbers, fps)
     
-    draw(input_frames, fps, player_tracker, ball_tracker, court_line_detector, reference_court, player_stats)
+    # draw(input_frames, fps, player_tracker, ball_tracker, court_line_detector, reference_court, player_stats)
 
 def draw(input_frames, fps, player_tracker, ball_tracker, court_line_detector, reference_court, player_stats):
     print('Drawing player, ball, keypoints, reference court and player stats on the video...')
