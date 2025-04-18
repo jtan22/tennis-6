@@ -123,25 +123,21 @@ class BallTracker:
             # The 'xyxy' attribute contains a list of lists, where each inner list
             # contains the coordinates of the bounding box in the format [x1, y1, x2, y2]
             bounding_box = box.xyxy.tolist()[0]
+            bounding_box = [int(coord) for coord in bounding_box]
             # We only track 1 ball here, so the track ID is set to 1
             ball_positions[track_id] = bounding_box
             track_id += 1
         return ball_positions
 
     def analyse_ball_positions_all_frames(self, fps):
-        self.remove_all_extra_balls_detected()
-        self.single_centre_points = self.find_centre_points(self.single_ball_positions)
-        self.clean_up_ball_positions()
-        self.clean_centre_points = self.find_centre_points(self.clean_ball_positions)
-
-        self.print_data_frame()
-        
-        self.find_ball_hits_and_bounces(fps)
+        single_ball_positions = self.remove_all_extra_balls_detected()
+        df = self.clean_up_ball_positions(single_ball_positions)
+        self.find_ball_hits_and_bounces(fps, df)
 
     # The detection may result in multiple balls, let's pick the best ball among them
     def remove_all_extra_balls_detected(self):
-        self.single_ball_positions = copy.deepcopy(self.multiple_ball_positions)
-        for i, ball_positions in enumerate(self.single_ball_positions):
+        single_ball_positions = copy.deepcopy(self.multiple_ball_positions)
+        for i, ball_positions in enumerate(single_ball_positions):
             if len(ball_positions) < 2:
                 continue
             last_ball_position = self.find_last_ball_position(i)
@@ -150,10 +146,11 @@ class BallTracker:
                 continue
             next_ball_position = self.find_next_ball_position(i)
             if next_ball_position is None:
-                self.single_ball_positions[i] = {1:ball_positions[1]}
+                single_ball_positions[i] = {1:ball_positions[1]}
                 continue
-            self.single_ball_positions[i] = {1:self.find_best_ball_position(last_ball_position, ball_positions, next_ball_position)}
-        print(f'Single ball positions size: {len(self.single_ball_positions)}')
+            single_ball_positions[i] = {1:self.find_best_ball_position(last_ball_position, ball_positions, next_ball_position)}
+        print(f'Single ball positions size: {len(single_ball_positions)}')
+        return single_ball_positions
 
     # Find the last available ball position which has only 1 ball
     def find_last_ball_position(self, index):
@@ -213,31 +210,50 @@ class BallTracker:
         print(f'Complete ball positions size: {self.complete_ball_positions}')
     
     # Remove invalid ball positions and interpolate missing ball positions
-    def clean_up_ball_positions(self):
-        self.clean_ball_positions = copy.deepcopy(self.single_ball_positions)
-        self.collect_stats()
-        mean_velocity = np.mean(self.velocities)
-        std_velocity = np.std(self.velocities)
+    def clean_up_ball_positions(self, single_ball_positions):
+        clean_ball_positions = copy.deepcopy(single_ball_positions)
+        df = self.collect_stats(clean_ball_positions)
+        mean_velocity = np.mean(df['velocity'])
+        std_velocity = np.std(df['velocity'])
         cutoff_velocity = mean_velocity + 2 * std_velocity
         print(f'Velocity: mean {mean_velocity}, std {std_velocity}, cutoff {cutoff_velocity}')
-        while self.remove_invalid_ball_positions(cutoff_velocity):
-            self.collect_stats()
-        self.remove_false_hits()
+        while self.remove_invalid_ball_positions(cutoff_velocity, df):
+            df = self.collect_stats(clean_ball_positions)
+        self.remove_false_hits(df)
+        return df
 
     # Remove false hits - TODO
-    def remove_false_hits(self):
-        mean_velocity_delta = np.mean(self.velocity_deltas[2:])
-        std_velocity_delta = np.std(self.velocity_deltas[2:])
+    def remove_false_hits(self, df):
+        mean_velocity_delta = np.mean(df['velocity_vector_delta'])
+        std_velocity_delta = np.std(df['velocity_vector_delta'])
         cutoff_velocity_delta = mean_velocity_delta - 3 * std_velocity_delta
         print(f'Velocity delta: mean {mean_velocity_delta}, std {std_velocity_delta}, cutoff {cutoff_velocity_delta}')
 
     # Collect all necessary data for further analysis
-    def collect_stats(self):
-        self.complete_ball_positions = self.interpolate_ball_positions(self.clean_ball_positions)
-        self.complete_centre_points = self.find_centre_points(self.complete_ball_positions)
-        self.velocities = self.calculate_velocities(self.complete_centre_points)
-        self.velocity_vectors = self.calculate_velocity_vectors(self.complete_centre_points)
-        self.velocity_deltas = self.calculate_velocity_deltas(self.velocity_vectors)
+    def collect_stats(self, clean_ball_positions):
+        self.complete_ball_positions = self.interpolate_ball_positions(clean_ball_positions)
+        df = pd.DataFrame({
+            'multi_ball_position': self.multiple_ball_positions,
+            'clean_ball_position': clean_ball_positions,
+            'ball_position': self.complete_ball_positions,
+        })
+        df['centre_point'] = df['ball_position'].apply(lambda ball_position: get_bounding_box_center_point(ball_position[1]))
+        df[['x', 'y']] = pd.DataFrame(df['centre_point'].to_list(), index=df.index)
+        df['x_diff'] = df['x'].diff().fillna(0).astype(int)
+        df['y_diff'] = df['y'].diff().fillna(0).astype(int)
+        df['y_rolling_mean'] = df['y'].rolling(window = 5, min_periods = 1, center = False).mean().round(1)
+        df['y_rolling_mean_delta'] = df['y_rolling_mean'].diff().round(1)
+        df['frame'] = df.index
+        df['velocity'] = ((df['x_diff'] ** 2 + df['y_diff'] ** 2) ** 0.5).round(2)
+        df['velocity_vector'] = np.where(
+            df['y_diff'] >= 0,
+            ((df['x_diff'] ** 2 + df['y_diff'] ** 2) ** 0.5).round(2),
+            (-(df['x_diff'] ** 2 + df['y_diff'] ** 2) ** 0.5).round(2)
+        )
+        df['velocity_vector_delta'] = df['velocity_vector'].diff().round(2)
+        df['velocity_rolling_mean'] = df['velocity'].rolling(window = 5, min_periods = 1, center = False).mean().round().astype(int)
+        df.to_csv('ball_data_frame.csv', index=False)
+        return df
 
     # Interpolate missing ball positions with simple exponential deceleration
     def interpolate_ball_positions(self, ball_positions):
@@ -281,10 +297,10 @@ class BallTracker:
         height = ((start_bounding_box[3] - start_bounding_box[1]) + (end_bounding_box[3] - end_bounding_box[1])) / 2
         for i in range(len(sequence_x)):
             bounding_box = [
-                sequence_x[i] - width / 2, 
-                sequence_y[i] - height / 2, 
-                sequence_x[i] + width / 2, 
-                sequence_y[i] + height / 2]
+                int(sequence_x[i] - width / 2), 
+                int(sequence_y[i] - height / 2), 
+                int(sequence_x[i] + width / 2), 
+                int(sequence_y[i] + height / 2)]
             bounding_boxes[missing_range[0] + i] = bounding_box
 
     # Calculate the exponential deceleration sequence
@@ -296,106 +312,46 @@ class BallTracker:
         sequence = [start + (end - start) * (1 - (1 - i / (steps - 1)) ** exponent) for i in range(steps)]
         return sequence
 
-    # Calculate velocity per frame
-    def calculate_velocities(self, centre_points):
-        velocities = []
-        velocities.append(0)
-        for i in range(1, self.frame_count):
-            velocity = get_distance_between_points(centre_points[i], centre_points[i - 1])
-            velocities.append(int(velocity))
-        return velocities
-
-    # Calculate delta of velocity per frame
-    def calculate_velocity_deltas(self, velocities):
-        velocity_deltas = []
-        velocity_deltas.append(None)
-        velocity_deltas.append(None)
-        for i in range(2, self.frame_count):
-            velocity_deltas.append(velocities[i] - velocities[i - 1])
-        return velocity_deltas
-
-    # Calculate velocity per frame with direction
-    def calculate_velocity_vectors(self, centre_points):
-        delta_ys = []
-        delta_ys.append(None)
-        for i in range(1, self.frame_count):
-            delta_ys.append(centre_points[i][1] - centre_points[i - 1][1])
-        velocities = []
-        velocities.append(0)
-        for i in range(1, self.frame_count):
-            velocity = get_distance_between_points(centre_points[i], centre_points[i - 1])
-            if delta_ys[i] < 0:
-                velocity *= -1
-            velocities.append(int(velocity))
-        return velocities
-
-    # Find centre points of ball positions
-    def find_centre_points(self, ball_positions):
-        bounding_boxes = [x.get(1, []) for x in ball_positions]
-        centre_points = []
-        for bounding_box in bounding_boxes:
-            if len(bounding_box) == 0:
-                centre_points.append(None)
-            else:
-                centre_points.append(get_bounding_box_center_point(bounding_box))
-        return centre_points
-
     # Remove those ball positions have impossible velocity        
-    def remove_invalid_ball_positions(self, cutoff_velocity):
+    def remove_invalid_ball_positions(self, cutoff_velocity, df):
         removed = False
         i = 1
         while i < self.frame_count:
-            if self.velocities[i] < cutoff_velocity:
+            if df.loc[i, 'velocity'] < cutoff_velocity:
                 i += 1
                 continue
             # Found outlier
-            print(f'Outlier: {self.velocities[i]}')
-            if len(self.clean_ball_positions[i]) == 0:
+            print(f'Outlier: {df.loc[i, 'velocity']}')
+            if len(df.loc[i, 'clean_ball_position']) == 0:
                 # Outlier caused by next detected ball position
                 i += 1
                 while i < self.frame_count:
-                    if len(self.clean_ball_positions[i]) == 0:
+                    if len(df.loc[i, 'clean_ball_position']) == 0:
                         i += 1
                         continue
                     else:
-                        self.clean_ball_positions[i] = {}
+                        df.loc[i, 'clean_ball_position'].clear()
                         print(f'Clear ball position: {i}')
                         break
             else:
                 # Outlier is the direct result of this ball position
-                self.clean_ball_positions[i] = {}
+                df.loc[i, 'clean_ball_position'].clear()
                 print(f'Clear ball position: {i}')
             # Let's carry on, but jump 10 position to avoid flow on effect of the current outlier
             i += 10
             removed = True
         return removed
 
-    def print_data_frame(self):
-        df = pd.DataFrame({
-            'single_centre_point': self.single_centre_points,
-            'clean_centre_point': self.clean_centre_points,
-            'complete_centre_point': self.complete_centre_points,
-            'velocity_vector': self.velocity_vectors,
-            'velocity': self.velocities,
-            'velocity_delta': self.velocity_deltas,
-        })
-        df['frame'] = df.index
-        df.to_csv('ball_trajectory_data.csv', index=False)
-
-    def find_ball_hits_and_bounces(self, fps):
-        df = pd.DataFrame({
-            'velocity': self.velocities,
-        })
-        df['velocity_rolling_mean'] = df['velocity'].rolling(window = 5, min_periods = 1, center = False).mean().round().astype(int)
+    def find_ball_hits_and_bounces(self, fps, df):
         peaks, _ = find_peaks(df['velocity_rolling_mean'], width=5, prominence=5)
         print(f'original peaks: {peaks}')
         troughs, _ = find_peaks(-df['velocity_rolling_mean'], prominence=5)
         print(f'original troughs: {troughs}')
 
-        self.near_hits = self.find_near_hits()
-        self.near_bounces = self.find_near_bounces(peaks, fps)
-        self.far_bounces = self.find_far_bounces(troughs, fps)
-        self.far_hits = self.find_far_hits()
+        self.near_hits = self.find_near_hits(df)
+        self.near_bounces = self.find_near_bounces(peaks, fps, df)
+        self.far_bounces = self.find_far_bounces(troughs, fps, df)
+        self.far_hits = self.find_far_hits(df)
         self.hits_and_bounces = self.sort_hits_and_bounces()
         self.find_near_hit_bounce_pairs = self.find_near_hit_bounce_pairs()
         self.far_hit_bounce_pairs = self.find_far_hit_bounce_pairs()
@@ -416,29 +372,29 @@ class BallTracker:
     # 48	-36	     3.0
     # Near hit at frame 37 with lowest velocity delta at 108, and 10 
     # consecutive negative velocity vectors
-    def find_near_hits(self):
-        mean = np.mean(self.velocity_deltas[2:])
-        std = np.std(self.velocity_deltas[2:])
+    def find_near_hits(self, df):
+        mean = np.mean(df['velocity_vector_delta'])
+        std = np.std(df['velocity_vector_delta'])
         cutoff = mean - 3 * std
         print(f'Velocity delta: mean {mean}, std {std}, cutoff {cutoff}')
         candidates = []
         for i in range(2, self.frame_count):
-            if self.velocity_deltas[i] < cutoff:
+            if df.loc[i, 'velocity_vector_delta'] < cutoff:
                 candidates.append(i)
         print(f'Near hits candidates: {candidates}')
         near_hits = []
         for candidate in candidates:
-            if self.all_negative_velocity(candidate, 10):
+            if self.all_negative_velocity(candidate, 10, df):
                 near_hits.append(candidate)
         near_hits = [item - 1 for item in near_hits]
         print(f'Near hits: {near_hits}')
         return near_hits
 
     # Check consecutive negative velocity vectors
-    def all_negative_velocity(self, start_index, count):
+    def all_negative_velocity(self, start_index, count, df):
         end_index = min(start_index + count, self.frame_count)
         for i in range(start_index, end_index):
-            if self.velocity_vectors[i] >= 0:
+            if df.loc[i, 'velocity_vector'] >= 0:
                 return False
         return True
 
@@ -457,7 +413,7 @@ class BallTracker:
     # 116	 -6.0
     # 117	  6.0
     # Near bounce at frame 107, with 108 has the lowest velocity delta
-    def find_near_bounces(self, peaks, fps):
+    def find_near_bounces(self, peaks, fps, df):
         print(f'frame_range: {fps}')
         candidates = []
         for peak in peaks:
@@ -466,7 +422,7 @@ class BallTracker:
         print(f'Near bounce candidates: {candidates}')
         near_bounces = []
         for candidate in candidates:
-            sum_velocity_delta, near_bounce = self.refine_near_bounce(candidate)
+            sum_velocity_delta, near_bounce = self.refine_near_bounce(candidate, df)
             if sum_velocity_delta > 0:
                 continue
             if not near_bounce in near_bounces:
@@ -486,15 +442,15 @@ class BallTracker:
 
     # A near bounce at lowest velocity delta, with the sum of next 10 
     # velocity deltas negative
-    def refine_near_bounce(self, candidate):
+    def refine_near_bounce(self, candidate, df):
         start_index = candidate
         end_index = min(start_index + 10, self.get_next_near_hit(start_index))
         min_velocity_delta_index = start_index
         sum_velocity_delta = 0
         for i in range(start_index + 1, end_index):
-            if self.velocity_deltas[i] < self.velocity_deltas[min_velocity_delta_index]:
+            if df.loc[i, 'velocity_vector_delta'] < df.loc[min_velocity_delta_index, 'velocity_vector_delta']:
                 min_velocity_delta_index = i
-            sum_velocity_delta += self.velocity_deltas[i]
+            sum_velocity_delta += df.loc[i, 'velocity_vector_delta']
         return sum_velocity_delta, min_velocity_delta_index
 
     # Get the next near hit index after the given index
@@ -519,7 +475,7 @@ class BallTracker:
     # 143	 -1.0
     # 144	  5.0
     # Far bounce at frame 137, with lowest velocity delta at 138
-    def find_far_bounces(self, troughs, fps):
+    def find_far_bounces(self, troughs, fps, df):
         frame_ranges = self.find_far_bounce_frame_ranges(fps)
         print(f'frame ranges: {frame_ranges}')
         candidates = []
@@ -529,7 +485,7 @@ class BallTracker:
         print(f'Far bounce candidates: {candidates}')
         far_bounces = []
         for candidate in candidates:
-            far_bounce = self.refine_far_bounce(candidate)
+            far_bounce = self.refine_far_bounce(candidate, df)
             if not far_bounce in far_bounces:
                 far_bounces.append(far_bounce)
         far_bounces = [item - 1 for item in far_bounces]
@@ -585,12 +541,12 @@ class BallTracker:
         return False
 
     # Find the frame number has the lowest velocity delta value
-    def refine_far_bounce(self, candidate):
+    def refine_far_bounce(self, candidate, df):
         start_index = candidate
         end_index = min(start_index + 10, self.frame_count)
         min_velocity_delta_index = start_index
         for i in range(start_index + 1, end_index):
-            if self.velocity_deltas[i] < self.velocity_deltas[min_velocity_delta_index]:
+            if df.loc[i, 'velocity_vector_delta'] < df.loc[min_velocity_delta_index, 'velocity_vector_delta']:
                 min_velocity_delta_index = i
         return min_velocity_delta_index
 
@@ -610,8 +566,8 @@ class BallTracker:
     # 155	19	15
     # At frame 148 we found delta_y change from negative to positive, but the 
     # actual hit should be at 145, which is the velocity vector direction change
-    def find_far_hits(self):
-        self.ball_hits = self.find_ball_hits()
+    def find_far_hits(self, df):
+        self.ball_hits = self.find_ball_hits(df)
         print(f'All hits: {self.ball_hits}')
         candidates = []
         for hit in self.ball_hits:
@@ -621,7 +577,7 @@ class BallTracker:
         print(f'Far hits candidates: {candidates}')
         far_hits = []
         for candidate in candidates:
-            far_hit = self.refine_far_hit(candidate)
+            far_hit = self.refine_far_hit(candidate, df)
             if far_hit is None:
                 continue
             far_hits.append(far_hit)
@@ -631,13 +587,13 @@ class BallTracker:
     
     # Refine the far hit index by finding the first index of a 10 consecutive 
     # positive velocity vectors following a change from negative to positive
-    def refine_far_hit(self, candidate):
+    def refine_far_hit(self, candidate, df):
         start_index = candidate
-        while start_index > 0 and self.velocity_vectors[start_index] >=0:
+        while start_index > 0 and df.loc[start_index, 'velocity_vector'] >=0:
             start_index -= 1
         start_index += 1
         for i in range(start_index, start_index + 10):
-            if self.velocity_vectors[i] < 0:
+            if df.loc[i, 'velocity_vector'] < 0:
                 return None
         return start_index
 
@@ -651,24 +607,19 @@ class BallTracker:
     # Find ball hits using delta of the rolling mean of y-axis, a near hit 
     # will have many negative delta-y following the hit, and a far hit will
     # have many positive delta-y following the hit.
-    def find_ball_hits(self):
-        bounding_boxes = [x.get(1, []) for x in self.complete_ball_positions]
-        df = pd.DataFrame(bounding_boxes, columns=['x1','y1','x2','y2'])
-        df['mid_y'] = (df['y1'] + df['y2']) / 2
-        df['mid_y_rolling_mean'] = df['mid_y'].rolling(window = 5, min_periods = 1, center = False).mean()
-        df['delta_y'] = df['mid_y_rolling_mean'].diff()
+    def find_ball_hits(self, df):
         df['ball_hit'] = 0
         minimum_change_frames_for_hit = 25
         for i in range(1, len(df) - int(minimum_change_frames_for_hit * 1.2)):
-            negative_change = df.at[i, 'delta_y'] > 0 and df.at[i+1, 'delta_y'] < 0
-            positive_change = df.at[i, 'delta_y'] < 0 and df.at[i+1, 'delta_y'] > 0
+            negative_change = df.at[i, 'y_rolling_mean_delta'] > 0 and df.at[i+1, 'y_rolling_mean_delta'] < 0
+            positive_change = df.at[i, 'y_rolling_mean_delta'] < 0 and df.at[i+1, 'y_rolling_mean_delta'] > 0
             if negative_change or positive_change:
                 change_count = 0
                 # Count how many following frames have the same change
                 # In this case, if 25 out of 30 frames have the same change, we consider it a hit 
                 for j in range(i + 1, i + int(minimum_change_frames_for_hit * 1.2) + 1):
-                    still_negative = df.at[i, 'delta_y'] > 0 and df.at[j, 'delta_y'] < 0
-                    still_positive = df.at[i, 'delta_y'] < 0 and df.at[j, 'delta_y'] > 0
+                    still_negative = df.at[i, 'y_rolling_mean_delta'] > 0 and df.at[j, 'y_rolling_mean_delta'] < 0
+                    still_positive = df.at[i, 'y_rolling_mean_delta'] < 0 and df.at[j, 'y_rolling_mean_delta'] > 0
                     if negative_change and still_negative:
                         change_count += 1
                     elif positive_change and still_positive:
