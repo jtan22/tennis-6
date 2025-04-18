@@ -40,7 +40,7 @@ def main():
     
     print('Processing player stats...')
     player_stats = PlayerStats(450, reference_court.canvas_width)
-    player_stats.collect_stats(reference_court.player_coordinates, reference_court.ball_coordinates, ball_tracker.ball_shot_frame_numbers, fps)
+    player_stats.collect_stats(reference_court.player_coordinates, reference_court.ball_coordinates, ball_tracker.ball_hits, fps)
     
     # draw(input_frames, fps, player_tracker, ball_tracker, court_line_detector, reference_court, player_stats)
 

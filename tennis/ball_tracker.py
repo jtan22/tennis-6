@@ -136,7 +136,7 @@ class BallTracker:
 
         self.print_data_frame()
         
-        self.find_ball_hits(fps)
+        self.find_ball_hits_and_bounces(fps)
 
     # The detection may result in multiple balls, let's pick the best ball among them
     def remove_all_extra_balls_detected(self):
@@ -382,7 +382,7 @@ class BallTracker:
         df['frame'] = df.index
         df.to_csv('ball_trajectory_data.csv', index=False)
 
-    def find_ball_hits(self, fps):
+    def find_ball_hits_and_bounces(self, fps):
         df = pd.DataFrame({
             'velocity': self.velocities,
         })
@@ -397,11 +397,8 @@ class BallTracker:
         self.far_bounces = self.find_far_bounces(troughs, fps)
         self.far_hits = self.find_far_hits()
         self.hits_and_bounces = self.sort_hits_and_bounces()
-        print(f'Sorted hits and bounces: {self.hits_and_bounces}')
-        self.near_hit_bounces = self.find_near_hit_bounces()
-        print(f'Near hit bounces: {self.near_hit_bounces}')
-        self.far_hit_bounces = self.find_far_hit_bounces()
-        print(f'Far hit bounces: {self.far_hit_bounces}')
+        self.find_near_hit_bounce_pairs = self.find_near_hit_bounce_pairs()
+        self.far_hit_bounce_pairs = self.find_far_hit_bounce_pairs()
 
     # Find near hits by finding the highest negative velocity delta, it's a 
     # hit if at least next 10 consecutive velocity vectors are all negative
@@ -500,6 +497,13 @@ class BallTracker:
             sum_velocity_delta += self.velocity_deltas[i]
         return sum_velocity_delta, min_velocity_delta_index
 
+    # Get the next near hit index after the given index
+    def get_next_near_hit(self, index):
+        for near_hit in self.near_hits:
+            if index < near_hit:
+                return near_hit
+        return self.frame_count - 1
+
     # Find far bounces by finding the troughs of velocity rolling mean, we also
     # assume a reasonable range the bounce could land in, and the exact bounce
     # is the frame just before the lowest velocity delta frame
@@ -590,11 +594,27 @@ class BallTracker:
                 min_velocity_delta_index = i
         return min_velocity_delta_index
 
+    # Find far hits by finding all ball hits, then filter out near hits, then 
+    # find the nearest velocity vector direction change
+    # 144	-7	-12
+    # 145	10	-8
+    # 146	 9	-4
+    # 147	 9	-1
+    # 148	 9	 1
+    # 149	 8	 3
+    # 150	 6	 3
+    # 151	17	 5
+    # 152	19	 7
+    # 153	25  10
+    # 154	24	13
+    # 155	19	15
+    # At frame 148 we found delta_y change from negative to positive, but the 
+    # actual hit should be at 145, which is the velocity vector direction change
     def find_far_hits(self):
-        self.ball_shot_frame_numbers = self.find_ball_shot_frame_numbers()
-        print(f'All hits: {self.ball_shot_frame_numbers}')
+        self.ball_hits = self.find_ball_hits()
+        print(f'All hits: {self.ball_hits}')
         candidates = []
-        for hit in self.ball_shot_frame_numbers:
+        for hit in self.ball_hits:
             if self.hit_in_near_hits_range(hit):
                 continue
             candidates.append(hit)
@@ -609,6 +629,8 @@ class BallTracker:
         print(f'Far hits: {far_hits}')
         return far_hits
     
+    # Refine the far hit index by finding the first index of a 10 consecutive 
+    # positive velocity vectors following a change from negative to positive
     def refine_far_hit(self, candidate):
         start_index = candidate
         while start_index > 0 and self.velocity_vectors[start_index] >=0:
@@ -619,13 +641,17 @@ class BallTracker:
                 return None
         return start_index
 
+    # Check if the given hit index is in the near hit frame range
     def hit_in_near_hits_range(self, hit):
         for near_hit in self.near_hits:
             if hit > near_hit - 10 and hit < near_hit + 10:
                 return True
         return False
 
-    def find_ball_shot_frame_numbers(self):
+    # Find ball hits using delta of the rolling mean of y-axis, a near hit 
+    # will have many negative delta-y following the hit, and a far hit will
+    # have many positive delta-y following the hit.
+    def find_ball_hits(self):
         bounding_boxes = [x.get(1, []) for x in self.complete_ball_positions]
         df = pd.DataFrame(bounding_boxes, columns=['x1','y1','x2','y2'])
         df['mid_y'] = (df['y1'] + df['y2']) / 2
@@ -651,32 +677,9 @@ class BallTracker:
                     df.loc[i, 'ball_hit'] = 1
         return df[df['ball_hit'] == 1].index.tolist()
 
-
-
-    def get_next_near_hit(self, index):
-        for near_hit in self.near_hits:
-            if index < near_hit:
-                return near_hit
-        return self.frame_count - 1
-
-    def find_near_hit_bounces(self):
-        near_hit_bounces = []
-        for i in range(2, len(self.hits_and_bounces) - 1, 4):
-            hit = self.hits_and_bounces[i]
-            bounce = self.hits_and_bounces[i + 1]
-            if hit is not None and bounce is not None:
-                near_hit_bounces.append((hit, bounce))
-        return near_hit_bounces
-    
-    def find_far_hit_bounces(self):
-        far_hit_bounces = []
-        for i in range(0, len(self.hits_and_bounces) - 1, 4):
-            hit = self.hits_and_bounces[i]
-            bounce = self.hits_and_bounces[i + 1]
-            if hit is not None and bounce is not None:
-                far_hit_bounces.append((hit, bounce))
-        return far_hit_bounces
-    
+    # Sort hits and bounces in 1 array, then work out the correct sequence 
+    # (far-hit, near-bounce, near-hit, far-bounce), replace with None if the
+    # correct hit or bounce is missing.
     def sort_hits_and_bounces(self):
         candidates = np.concatenate((self.near_hits, self.far_hits, self.near_bounces, self.far_bounces))
         candidates = np.sort(candidates)
@@ -721,8 +724,31 @@ class BallTracker:
                     hits_and_bounces.append(None)
                 far_bounce = False
                 far_hit = True
+        print(f'Sorted hits and bounces: {hits_and_bounces}')
         return hits_and_bounces    
 
+    # Near hit at every 4 indexes starts at index 3, far bounce starts at 4
+    def find_near_hit_bounce_pairs(self):
+        near_hit_bounces = []
+        for i in range(2, len(self.hits_and_bounces) - 1, 4):
+            hit = self.hits_and_bounces[i]
+            bounce = self.hits_and_bounces[i + 1]
+            if hit is not None and bounce is not None:
+                near_hit_bounces.append((hit, bounce))
+        print(f'Near hit bounce pairs: {near_hit_bounces}')
+        return near_hit_bounces
+    
+    # Far hit at every 4 indexes starts at index 0, far bounce starts at 1
+    def find_far_hit_bounce_pairs(self):
+        far_hit_bounces = []
+        for i in range(0, len(self.hits_and_bounces) - 1, 4):
+            hit = self.hits_and_bounces[i]
+            bounce = self.hits_and_bounces[i + 1]
+            if hit is not None and bounce is not None:
+                far_hit_bounces.append((hit, bounce))
+        print(f'Far hit bounce pairs: {far_hit_bounces}')
+        return far_hit_bounces
+    
     # Draw bounding boxes on the frames
     def draw(self, input_frames):
         output_frames = []
