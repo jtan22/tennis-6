@@ -12,6 +12,7 @@ import numpy as np
 def main():
     input_video_path = 'input_videos/sample001.mp4'
     input_frames, fps = read_video(input_video_path)
+    fps = round(fps)
 
     print('Processing player tracker...')
     player_tracker = PlayerTracker(model_path='yolov8x')
@@ -36,7 +37,7 @@ def main():
 
     print('Converting player and ball positions to reference court coordinates...')
     reference_court.convert_player_coordinates(player_tracker.player_positions)
-    reference_court.convert_ball_coordinates(ball_tracker.complete_ball_positions)
+    reference_court.convert_ball_coordinates(player_tracker.player_positions, player_tracker.near_player, player_tracker.far_player, ball_tracker.complete_ball_positions, ball_tracker.hits_and_bounces, fps)
     
     print('Processing player stats...')
     player_stats = PlayerStats(450, reference_court.canvas_width)

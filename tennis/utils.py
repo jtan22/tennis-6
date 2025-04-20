@@ -1,5 +1,7 @@
 import cv2
 from shapely.geometry import Point, LineString
+import math
+from .constants import GRAVITY, BALL_TERMINAL_VELOCITY_SQUARED
 
 def read_video(video_path):
     # Read a video file and return its frames as a list of numpy arrays
@@ -46,4 +48,12 @@ def get_distance_between_point_and_line(point, line_start, line_end):
     distance_infinite_sh = point_sh.distance(line_sh)
     print(f"Shapely: Distance from {point_sh} to the line {line_sh}: {distance_infinite_sh}")
     return distance_infinite_sh
+
+# U0 = (Vt^2)*(e^(g*x/Vt^2) - 1)/(g*t)
+def get_initial_horizontal_velocity(distance, time):
+    return BALL_TERMINAL_VELOCITY_SQUARED * (math.e ** (distance * GRAVITY / BALL_TERMINAL_VELOCITY_SQUARED) - 1) / (GRAVITY * time)
+
+# x = (Vt^2/g)*ln((Vt^2+g*U0*t)/Vt^2) = (Vt^2/g)*ln(1+g*U0*t/Vt^2)
+def get_distance_by_time(initial_velocity, time):
+    return (BALL_TERMINAL_VELOCITY_SQUARED / GRAVITY) * math.log((BALL_TERMINAL_VELOCITY_SQUARED + (GRAVITY * initial_velocity * time)) / BALL_TERMINAL_VELOCITY_SQUARED)
 

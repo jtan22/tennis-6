@@ -149,7 +149,7 @@ class CourtLineDetector:
     # Draw keypoints on the image    
     def draw_keypoints(self, image):
         for keypoint in self.homographied_keypoints:
-            cv2.circle(image, keypoint, 5, (255, 0, 0), -1)
+            cv2.circle(image, keypoint, 5, (0, 255, 255), -1)
         return image
     
     # Draw keypoints on the video frames

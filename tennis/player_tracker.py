@@ -81,6 +81,15 @@ class PlayerTracker:
         distances.sort(key = lambda x: x[1])
         # Choose the first 2 track_ids
         first_2_track_ids = [distances[0][0], distances[1][0]]
+        bounding_box1 = person_positions_per_frame[first_2_track_ids[0]]
+        bounding_box2 = person_positions_per_frame[first_2_track_ids[1]]
+        if bounding_box1[1] > bounding_box2[1]:
+            self.far_player = first_2_track_ids[1]
+            self.near_player = first_2_track_ids[0]
+        else:
+            self.far_player = first_2_track_ids[0]
+            self.near_player = first_2_track_ids[1]
+        print(f'Near player: {self.near_player}, far player: {self.far_player}')
         return first_2_track_ids
 
     # Draw bounding boxes on the frames

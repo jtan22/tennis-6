@@ -353,7 +353,7 @@ class BallTracker:
         self.far_bounces = self.find_far_bounces(troughs, fps, df)
         self.far_hits = self.find_far_hits(df)
         self.hits_and_bounces = self.sort_hits_and_bounces()
-        self.find_near_hit_bounce_pairs = self.find_near_hit_bounce_pairs()
+        self.near_hit_bounce_pairs = self.find_near_hit_bounce_pairs()
         self.far_hit_bounce_pairs = self.find_far_hit_bounce_pairs()
 
     # Find near hits by finding the highest negative velocity delta, it's a 
