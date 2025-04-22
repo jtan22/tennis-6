@@ -116,12 +116,13 @@ class ReferenceCourt():
         # best_keypoints is a list of list [[x1 y1], [x2 y2], ...]
         best_keypoints = cv2.perspectiveTransform(reference_keypoints, self.homography_matrix)
         # turn best_keypoints into a list of tuples [(x1, y1), (x2, y2), ...]
-        self.homographied_keypoints = [tuple(map(int, point)) for point in best_keypoints.reshape(-1, 2)]
+        homographied_keypoints = [tuple(map(int, point)) for point in best_keypoints.reshape(-1, 2)]
         # We preserve the refined keypoints from the given keypoints which are better than the
         # predicted keypoints. We only use the keypoints which refined keypoints can work out.
-        for i in range(len(self.homographied_keypoints)):
+        for i in range(len(homographied_keypoints)):
             if given_keypoints[i] is not None:
-                self.homographied_keypoints[i] = given_keypoints[i]
+                homographied_keypoints[i] = given_keypoints[i]
+        return homographied_keypoints
 
     def convert_player_coordinates(self, player_positions):
         self.player_coordinates = self.convert_to_reference_coordinates(player_positions)

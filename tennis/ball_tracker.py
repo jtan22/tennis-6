@@ -84,7 +84,7 @@ class BallTracker:
 
 
     # Detect ball positions in a list of frames
-    def dectect_ball_positions_all_frames(self, frames, read_from_stub=False, stub_path=None):
+    def detect_ball_positions_all_frames(self, frames, read_from_stub=False, stub_path=None):
         if read_from_stub and stub_path is not None:
             # Read frames from stub
             with open(stub_path, 'rb') as f:

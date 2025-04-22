@@ -20,20 +20,22 @@ def main():
 
     print('Processing ball tracker...')
     ball_tracker = BallTracker(model_path='models/ball/train-5l6u-10-64/weights/last-378-213.pt')
-    ball_tracker.dectect_ball_positions_all_frames(input_frames, read_from_stub=True, stub_path='tracker_stubs/ball_detections.pkl')
+    ball_tracker.detect_ball_positions_all_frames(input_frames, read_from_stub=True, stub_path='tracker_stubs/ball_detections.pkl')
     ball_tracker.analyse_ball_positions_all_frames(fps)
 
     print('Processing court line detector...')
     court_line_detector = CourtLineDetector('models/keypoints/keypoints_model_resnet50_epoch20_cuda.pth')
     court_line_detector.predict_keypoints(input_frames[0])
-    court_line_detector.refine_keypoints(input_frames[0])
+    court_line_detector.refine_predicted_keypoints(input_frames[0])
 
     reference_court = ReferenceCourt(input_frames[0].shape[1], input_frames[0].shape[0], 400)
-    reference_court.homograph_keypoints(court_line_detector.refined_keypoints)
-    court_line_detector.set_homographied_keypoints(reference_court.homographied_keypoints)
+    homographied_keypoints = reference_court.homograph_keypoints(court_line_detector.refined_predicted_keypoints)
+    court_line_detector.refine_homographied_keypoints(input_frames[0], homographied_keypoints)
+    court_keypoints = reference_court.homograph_keypoints(court_line_detector.refined_homographied_keypoints)
+    court_line_detector.set_court_keypoints(court_keypoints)
 
     print('Processing player positions...')
-    player_tracker.filter_out_non_players(reference_court.homographied_keypoints)
+    player_tracker.filter_out_non_players(court_keypoints)
 
     print('Converting player and ball positions to reference court coordinates...')
     reference_court.convert_player_coordinates(player_tracker.player_positions)
