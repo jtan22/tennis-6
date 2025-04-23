@@ -26,6 +26,12 @@ def main():
     ball_analyser = BallAnalyser(len(input_frames))
     ball_analyser.find_ball_hits_and_bounces(fps, ball_tracker.df)
 
+    # Save data for analysis (optional)
+    try:
+        ball_tracker.df.to_csv('ball_data_frame.csv', index=False)
+    except IOError as e:
+        print(f"Warning: Could not save DataFrame to CSV: {e}")
+
     print('Processing court line detector...')
     court_line_detector = CourtLineDetector('models/keypoints/keypoints_model_resnet50_epoch20_cuda.pth')
     court_line_detector.predict_keypoints(input_frames[0])
@@ -48,7 +54,7 @@ def main():
     player_stats = PlayerStats(450, reference_court.canvas_width)
     player_stats.collect_stats(reference_court.player_coordinates, reference_court.ball_coordinates, ball_analyser.ball_hits, fps)
     
-    draw(input_frames, fps, player_tracker, ball_tracker, court_line_detector, reference_court, player_stats)
+    # draw(input_frames, fps, player_tracker, ball_tracker, court_line_detector, reference_court, player_stats)
 
 def draw(input_frames, fps, player_tracker, ball_tracker, court_line_detector, reference_court, player_stats):
     print('Drawing player, ball, keypoints, reference court and player stats on the video...')

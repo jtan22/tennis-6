@@ -24,7 +24,7 @@ class BallAnalyser:
         self.hits_and_bounces: Optional[List[Optional[int]]] = None
         self.ball_hits: Optional[List[int]] = None
 
-    def find_ball_hits_and_bounces(self, fps: int, df: Any) -> None:
+    def find_ball_hits_and_bounces(self, fps: int, df: pd.DataFrame) -> None:
         """
         Main method to identify all ball hits and bounces in the data.
         
@@ -36,6 +36,26 @@ class BallAnalyser:
                 - velocity_vector_delta
                 - y_rolling_mean_delta
         """
+        # Signed velocity (positive when moving down, negative when moving up)
+        df['velocity_vector'] = np.where(
+            df['y_diff'] >= 0,
+            df['velocity'],
+            -df['velocity']
+        )
+        df['velocity_vector_delta'] = df['velocity_vector'].diff().round(2)
+        
+        # Calculate smoothed metrics
+        window_size = min(5, len(df))
+        if window_size > 0:
+            rolling_args = {'window': window_size, 'min_periods': 1, 'center': False}
+            
+            df['y_rolling_mean'] = df['y'].rolling(**rolling_args).mean().round(1)
+            df['y_rolling_mean_delta'] = df['y_rolling_mean'].diff().round(1)
+            df['velocity_rolling_mean'] = df['velocity'].rolling(**rolling_args).mean().round(1)
+            
+            # Acceleration (second derivative)
+            df['acceleration'] = df['velocity_vector'].diff().rolling(**rolling_args).mean().round(2)
+
         # Find velocity peaks and troughs
         peaks, _ = find_peaks(df['velocity_rolling_mean'], width=5, prominence=5)
         troughs, _ = find_peaks(-df['velocity_rolling_mean'], prominence=5)

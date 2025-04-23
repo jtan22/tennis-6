@@ -7,6 +7,7 @@ import pandas as pd
 import pickle
 import torch
 from ultralytics import YOLO
+import copy
 
 from .utils import get_distance_between_point_and_line
 from .bounding_box import BoundingBox
@@ -172,7 +173,7 @@ class BallTracker:
         # First, reduce to one ball per frame
         self.single_ball_positions = self._remove_extra_balls_detected()
         # All outliers removed from single_ball_positions
-        self.clean_ball_positions = self.single_ball_positions.copy()
+        self.clean_ball_positions = copy.deepcopy(self.single_ball_positions)
         
         # Prepare initial data
         self.df = self._prepare_data()
@@ -326,17 +327,11 @@ class BallTracker:
         df[['x', 'y']] = pd.DataFrame(df['centre_point'].tolist(), index=df.index)
         
         # Calculate motion metrics
-        self._calculate_motion_metrics(df)
+        self._calculate_velocity(df)
         
-        # Save data for analysis (optional)
-        try:
-            df.to_csv('ball_data_frame.csv', index=False)
-        except IOError as e:
-            print(f"Warning: Could not save DataFrame to CSV: {e}")
-            
         return df
 
-    def _calculate_motion_metrics(self, df: pd.DataFrame) -> None:
+    def _calculate_velocity(self, df: pd.DataFrame) -> None:
         """
         Calculate motion metrics from position data.
         
@@ -350,26 +345,6 @@ class BallTracker:
         # Velocity calculations
         df['velocity'] = np.sqrt(df['x_diff']**2 + df['y_diff']**2).round(2)
         
-        # Signed velocity (positive when moving down, negative when moving up)
-        df['velocity_vector'] = np.where(
-            df['y_diff'] >= 0,
-            df['velocity'],
-            -df['velocity']
-        )
-        
-        # Calculate smoothed metrics
-        window_size = min(5, len(df))
-        if window_size > 0:
-            rolling_args = {'window': window_size, 'min_periods': 1, 'center': False}
-            
-            df['y_rolling_mean'] = df['y'].rolling(**rolling_args).mean().round(1)
-            df['y_rolling_mean_delta'] = df['y_rolling_mean'].diff().round(1)
-            df['velocity_vector_delta'] = df['velocity_vector'].diff().round(2)
-            df['velocity_rolling_mean'] = df['velocity'].rolling(**rolling_args).mean().round(1)
-            
-            # Acceleration (second derivative)
-            df['acceleration'] = df['velocity_vector'].diff().rolling(**rolling_args).mean().round(2)
-
     def _interpolate_ball_positions(self, ball_positions: List[Dict[int, List[int]]]) -> List[Dict[int, List[int]]]:
         """
         Fill in missing ball positions using interpolation.
