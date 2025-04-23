@@ -3,11 +3,11 @@ from tennis import (
     save_video,
     PlayerTracker,
     BallTracker,
+    BallAnalyser,
     CourtLineDetector,
     ReferenceCourt,
     PlayerStats)
 import cv2
-import numpy as np
 
 def main():
     input_video_path = 'input_videos/sample001.mp4'
@@ -21,7 +21,10 @@ def main():
     print('Processing ball tracker...')
     ball_tracker = BallTracker(model_path='models/ball/train-5l6u-10-64/weights/last-378-213.pt')
     ball_tracker.detect_ball_positions_all_frames(input_frames, read_from_stub=True, stub_path='tracker_stubs/ball_detections.pkl')
-    ball_tracker.analyse_ball_positions_all_frames(fps)
+    ball_tracker.synthesize_ball_positions()
+
+    ball_analyser = BallAnalyser(len(input_frames))
+    ball_analyser.find_ball_hits_and_bounces(fps, ball_tracker.df)
 
     print('Processing court line detector...')
     court_line_detector = CourtLineDetector('models/keypoints/keypoints_model_resnet50_epoch20_cuda.pth')
@@ -39,11 +42,11 @@ def main():
 
     print('Converting player and ball positions to reference court coordinates...')
     reference_court.convert_player_coordinates(player_tracker.player_positions)
-    reference_court.convert_ball_coordinates(player_tracker.player_positions, player_tracker.near_player, player_tracker.far_player, ball_tracker.complete_ball_positions, ball_tracker.hits_and_bounces, fps)
+    reference_court.convert_ball_coordinates(player_tracker.player_positions, player_tracker.near_player, player_tracker.far_player, ball_tracker.complete_ball_positions, ball_analyser.hits_and_bounces, fps)
     
     print('Processing player stats...')
     player_stats = PlayerStats(450, reference_court.canvas_width)
-    player_stats.collect_stats(reference_court.player_coordinates, reference_court.ball_coordinates, ball_tracker.ball_hits, fps)
+    player_stats.collect_stats(reference_court.player_coordinates, reference_court.ball_coordinates, ball_analyser.ball_hits, fps)
     
     draw(input_frames, fps, player_tracker, ball_tracker, court_line_detector, reference_court, player_stats)
 

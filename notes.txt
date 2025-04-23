@@ -2,114 +2,78 @@ In Command Palette, use Python: Create Environment command to create a new Pytho
 
 pip install ultralytics
 
-28,  bounce
-37,  hit      (4+, 14-)
-56,  bounce   (3-, 1+, 22-)
-73,  hit
-107, bounce   (28+, 3-, 7+)
-117, hit      (7+, 16-)
-136, bounce   (3+, 8-)
-145, hit      (8-, 30+)
-165, bounce   (20+, 10+)
-174, hit      (30+, 15-)
-196, bounce   ()
-204, hit
-223, bounce
-235, hit
-256, bounce
-264, hit
-283, bounce
-295, hit
-318, bounce
-329, hit
-349, bounce
-363, hit
-391, bounce
-404, hit
-435, bounce
-444, hit
-474, bounce
-484, hit
-503, bounce
-516, hit
-542, bounce
-551, hit
-570, bounce
+# Drag force on a tennis ball: Fd = 1/2*Cd*p*A*v^2
+# Cd: drag coefficient: 0.55 - 0.65
+# p: air density: 1.225 kg/m3 at see level
+# A: cross-sectional area of tennis ball: 3.14*(0.066/2)^2 = 0.0034 m2
+# v: velocity of the tennis ball
+# Which means on average: Fd = 1/2*0.6*1.225*0.0034*v^2 => Fd = 0.00125*v^2
+# A 30 m/s ball will have drag force: 0.00125*30^2 = 1.125 N, 
+# Compare to gravitational force: m*g = 0.057*9.8 = 0.559 N
+# 
+# Condition             Velocity    Time to Bounce  Travel Distance Launching angle
+# No air no spin        30 m/s      0.452 s         13.56 m         
+# Air no spin           30 m/s      0.470 s         12.46 m         4.0 - 8.1
+# Air top spin (20 rps) 30 m/s      0.410 s         10.85 m         5.5 - 11.9
+#
+# Magnus force on a tennis ball: Fl = Cl*p*A*v^2
+# Cl: lift coefficiency: Cl = 1/(2+V/Vspin)
+#     where Vspin = R*w
+#     R: radius of the ball: 0.033 m
+#     w: angular speed 100 - 500 radians/sec, translates to 16 - 80 revs/sec
+# A 30 m/s ball with 50 revs/sec: Cl = 1/(2+30/(0.033*300)) = 0.20
+# Fl = 0.2*1.225*0.0034*30^2 = 0.75 N
+#
+# The combined drag and lift coefficiency: Cdl = Cd+1/(22.5+4.2(V/Vspin)^2.5)^0.4
+# If Cd is 0.6, V is 30m and Vspin is 9.9m/s, Cdl = 0.6+1/(22.5+4.2(30/9.9)^2.5)^0.4 = 0.77
+#
+# Vertical terminal velocity Vt of the tennis ball with drag only can be calculated using
+# weight = drag 
+# => 
+# mg = Cd*p*A*Vt^2/2 => Vt^2 = (2*m*g)/(Cd*p*A)
+# => 
+# 0.057*9.8*2 = 0.6*1.225*0.0034*Vt^2
+# =>
+# Vt = (1.1172/0.002499)^0.5 = 477.0588^0.5 = 21.84
+# 
+# Vertical acceleration changes with time and velocity, for vertical ascent
+# ma = -mg - Cd*p*A*v^2/2
+# =>
+# a = -g - Cd*p*A*v^2/(2*m)
+# => use Vt^2 = (2*m*g)/(Cd*p*A)
+# a = -g*(1+v^2/Vt^2)
+#
+# Vertical velocity in terms of time
+# a = dv/dt = -g*(1+v^2/Vt^2)
+# => using integration, limits and trigonometric identiy
+# V/Vt = (V0-Vt-tan(g*t/Vt))/(Vt+V0*tan(g*t/Vt))
+# 
+# Vertical location in terms of vertical velocity
+# y = (Vt^2/2*g)*ln((V0^2+Vt^2)/(V^2+Vt^2))
+# y(max) = (Vt^2/2*g)*ln((V0^2+Vt^2)/(Vt^2))
+#
+# Horizontal location in terms of time
+# ma = -Cd*p*A*u^2/2
+# =>
+# a = -Cd*p*A*u^2/(2*m)
+# => use Vt^2 = (2*m*g)/(Cd*p*A)
+# a = du/dt = -g*u^2/Vt^2
+# => integrating and limit
+# x = (Vt^2/g)*ln((Vt^2_g*U0*t)/Vt^2)
+# U0 = (Vt^2)*(e^(g*x/Vt^2) - 1)/g*t
 
 
 
-Far hit:
-73,  hit
-145, hit      (8-, 30+)
-204, hit
-264, hit
-329, hit
-404, hit
-484, hit
-551, hit
-
-
-Near bounce: peaks, biggest drop in velocity next 10 or reach near hit
-28,  bounce
-107, bounce   (28+, 3-, 7+)
-165, bounce   (20+, 10+)
-223, bounce
-283, bounce
-349, bounce
-435, bounce
-503, bounce
-570, bounce
-
-Near hit: velocity delta < - 2*std_velocity_delta, and 10 consecutive negative velocity vectors
-37,  hit      (4+, 14-)
-117, hit      (7+, 16-)
-174, hit      (30+, 15-)
-235, hit
-295, hit
-363, hit
-444, hit
-516, hit
-
-Far bounce: troughs
-56,  bounce   (3-, 1+, 22-)
-136, bounce   (3+, 8-)
-196, bounce   ()
-256, bounce
-318, bounce
-391, bounce
-474, bounce
-542, bounce
-
-
-
-37,  hit      (4+, 14-)
-73,  hit
-117, hit      (7+, 16-)
-145, hit      (8-, 30+)
-174, hit      (30+, 15-)
-204, hit
-235, hit
-264, hit
-295, hit
-329, hit
-363, hit
-404, hit
-444, hit
-484, hit
-516, hit
-551, hit
-
-peaks: [ 27  37  57  64  77  87 106 117 136 165 174 196 223 233 256 283 294 317
- 328 335 345 349 354 361 403 434 474 501 515 542 565 571 586]
-
-
-x = (V^2/g)*ln((V^2+g*U*t)/V^2)  
-U = (V^2)*(e^(g*x/V^2) - 1)/g*t
-
-
-
-Predicted  keypoints: [(598, 296), (1330, 296), (248, 837), (1685, 836), (690, 296), (427, 837), (1238, 296), (1505, 836), (656, 368), (1272, 368), (527, 635), (1405, 634), (963, 368), (966, 635)]
-Refined    keypoints: [(603, 296), None, (239, 844), (1681, 842), (691, 297), (428, 840), (1214, 298), (1494, 841), None, None, (529, 635), None, None, None]
-Re-refined keypoints: [(604, 296), (1304, 298), (237, 840), (1680, 843), None, (426, 840), (1216, 298), (1495, 840), None, None, (529, 634), (1386, 634), None, None]
-Homography keypoints: [(603, 296), (1300, 298), (239, 844), (1681, 842), (691, 297), (428, 840), (1214, 298), (1494, 841), (657, 366), (1249, 367), (529, 635), (1387, 635), (953, 367), (958, 634)]
-Court      keypoints: [(604, 296), (1304, 298), (237, 840), (1680, 843), (691, 296), (426, 840), (1216, 298), (1495, 840), (656, 365), (1251, 367), (529, 634), (1386, 634), (954, 366), (956, 633)]
+Velocity: mean 26.992199661590522, std 36.207600045897195, cutoff 99.40739975338491
+Outlier: 194.64
+Clear ball position: 236
+Outlier: 615.03
+Clear ball position: 328
+Outlier: 102.94
+Clear ball position: 401
+Outlier: 345.56
+Clear ball position: 571
+Outlier: 107.04
+Clear ball position: 237
+Outlier: 184.62
+Clear ball position: 572
