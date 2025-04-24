@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import math
+import copy
 import pandas as pd
 from scipy.spatial import distance
 from typing import List, Dict, Tuple, Optional, Any
@@ -56,6 +57,7 @@ class ReferenceCourt:
         """
         self.canvas_width = canvas_width
         self.pixel_to_meter_ratio = self.canvas_width / (DOUBLES_LINE_WIDTH + 2 * SIDE_RUN_WIDTH)
+        print(f'pixel_to_meter_ratio: {self.pixel_to_meter_ratio}')
         self.canvas_depth = ((HALF_COURT_DEPTH + RUN_BACK_DEPTH) * 2) * self.pixel_to_meter_ratio
 
         # Initialize canvas positions on the frame
@@ -63,12 +65,16 @@ class ReferenceCourt:
         self.canvas_x1 = self.canvas_x2 - self.canvas_width
         self.canvas_y2 = frame_height - REFERENCE_COURT_MARGIN_Y
         self.canvas_y1 = self.canvas_y2 - self.canvas_depth
+
+        print(f'canvas size: {self.canvas_width} x {round(self.canvas_depth)}')
         
         # Initialize court positions on the canvas
         self.court_x1 = SIDE_RUN_WIDTH * self.pixel_to_meter_ratio
         self.court_x2 = self.canvas_width - self.court_x1
         self.court_y1 = RUN_BACK_DEPTH * self.pixel_to_meter_ratio
         self.court_y2 = self.canvas_depth - self.court_y1
+
+        print(f'court size: {round(self.court_x2 - self.court_x1)} x {round(self.court_y2 - self.court_y1)}')
         
         self.doubles_alley_width = DOUBLES_ALLEY_WIDTH * self.pixel_to_meter_ratio
         self.no_mans_land_depth = NO_MANS_LAND_DEPTH * self.pixel_to_meter_ratio
@@ -289,6 +295,7 @@ class ReferenceCourt:
                 i += 1
                 continue
                 
+            print(f'Processing hit and bounce: {hits_and_bounces[i]} - {hits_and_bounces[i + 1]}')
             frame_count = hits_and_bounces[i + 1] - hits_and_bounces[i]
             
             ball_point_1 = get_bounding_box_center_point(ball_positions[hits_and_bounces[i]][1])
@@ -314,15 +321,24 @@ class ReferenceCourt:
                              hits_and_bounces_index: int, 
                              ball_point: Tuple[int, int]) -> float:
         hit_bounce_pattern = hits_and_bounces_index % 4
-        if hit_bounce_pattern ==1 or hit_bounce_pattern == 3:
+        if hit_bounce_pattern == 1 or hit_bounce_pattern == 3:
             return 0
 
         # Calculate the height of the ball at the moment of hit or bounce       
         player_ratio = (player_box[2] - player_box[0]) / (player_box[3] - player_box[1])
         player_height = get_player_height(player_ratio)
         if hit_bounce_pattern == 0:  # Far hit and bounce
+            # Move player feet 1 meter down
+            player_feet_point = (player_box[2], player_box[3])
+            player_feet_reference_point = self.get_reference_coordinate(player_feet_point)
+            player_hitting_reference_point = (player_feet_reference_point[0], player_feet_reference_point[1] + 1 * self.pixel_to_meter_ratio)
+            player_hitting_point = self.get_original_coordinate(player_hitting_reference_point)
             ball_player_ratio = (player_box[3] - ball_point[1]) / (player_box[3] - player_box[1])
-            return round(player_height * ball_player_ratio, 2)
+            if ball_player_ratio < 0:
+                ball_player_ratio = 0.01
+            ball_hit_height = round(player_height * ball_player_ratio, 2)
+            print(f'Far hit and bounce, {ball_hit_height} m, player_height: {player_height} m')
+            return ball_hit_height
         else:  # Near hit and bounce
             # Move player feet 1 meter up
             player_feet_point = (player_box[2], player_box[3])
@@ -332,7 +348,9 @@ class ReferenceCourt:
             ball_player_ratio = (player_hitting_point[1] - ball_point[1]) / (player_box[3] - player_box[1])
             if ball_player_ratio < 0:
                 ball_player_ratio = 0.01
-            return round(player_height * ball_player_ratio, 2)
+            ball_hit_height = round(player_height * ball_player_ratio, 2)
+            print(f'Near hit and bounce, {ball_hit_height} m, player_height: {player_height} m')
+            return ball_hit_height
 
     def _get_player_box(self, 
                       player_positions: List[Dict[int, List]], 
@@ -421,7 +439,7 @@ class ReferenceCourt:
         distance_meters = get_distance_between_points(start_point, end_point) / self.pixel_to_meter_ratio
         time_seconds = frame_count / fps
         initial_horizontal_velocity = get_initial_horizontal_velocity(distance_meters, time_seconds)
-        print(f'distance: {distance_meters}, time: {time_seconds}, velocity: {initial_horizontal_velocity}')
+        print(f'Distance: {distance_meters}, Time: {time_seconds}, Initial horizontal velocity: {initial_horizontal_velocity} m/s')
 
         calculated_coordinates = [start_point]
         vertical_distances = None
@@ -429,14 +447,12 @@ class ReferenceCourt:
 
         if ball_hit_height > 0:
             initial_vertical_velocity = get_initial_vertical_velocity(ball_hit_height, time_seconds)
-            print(f'Initial vertical velocity: {initial_vertical_velocity}')
             vertical_distances, vertical_velocities = get_vertical_distances_and_velocities(
                 initial_vertical_velocity, 
                 ball_hit_height, 
                 time_seconds / frame_count)
 
             initial_velocity = get_hypotenuse(initial_horizontal_velocity, initial_vertical_velocity)
-            print(f'Initial velocity angle: {math.degrees(math.atan(initial_vertical_velocity / initial_horizontal_velocity))}')
 
             calculated_coordinates = [(start_point[0], start_point[1], ball_hit_height, round(initial_velocity, 2))]
         
@@ -455,8 +471,38 @@ class ReferenceCourt:
                 calculated_coordinates.append((int(x), int(y), round(h, 2), round(v, 2)))
             else:
                 calculated_coordinates.append((int(x), int(y)))
-            
+        
+        self.get_net_clearance(calculated_coordinates)
+
         return calculated_coordinates
+
+    def get_net_clearance(self, calculated_coordinates: List[Tuple[int, int]]) -> None:
+        """
+        Calculate the net clearance for the ball trajectory.
+        
+        Args:
+            calculated_coordinates: List of calculated ball coordinates
+        """
+        if calculated_coordinates is None:
+            return
+        if len(calculated_coordinates[0]) == 2:
+            print('No net clearance, its a bounce and hit')
+            return
+        coordinates = copy.deepcopy(calculated_coordinates)
+        coordinates.sort(key=lambda x: x[1])
+        for i in range(len(coordinates)):
+            if coordinates[i][1] < self.canvas_depth / 2:
+                continue
+            if coordinates[i][1] == self.canvas_depth / 2:
+                print(f'Ball is on the net: {coordinates[i][2]} m')
+                return
+            coordinate1 = coordinates[i - 1]
+            coordinate2 = coordinates[i]
+            y_ratio = (coordinate2[1] - self.canvas_depth / 2) / (coordinate2[1] - coordinate1[1])
+            ball_height_diff = coordinate2[2] - coordinate1[2]
+            ball_height_at_net = coordinate2[2] - ball_height_diff * y_ratio
+            print(f'Net clearance: {round(ball_height_at_net, 2)} m')
+            break
 
     def _replace_ball_coordinates(self, 
                                 start_frame_number: int, 

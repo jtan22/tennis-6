@@ -159,4 +159,4 @@ def get_hypotenuse(a, b):
     return (a ** 2 + b **2) ** 0.5
 
 def get_player_height(player_ratio):
-    return DEFAULT_PLAYER_HEIGHT * PLAYER_STANDING_WIDTH_HEIGHT_RATIO / player_ratio
+    return DEFAULT_PLAYER_HEIGHT * PLAYER_STANDING_WIDTH_HEIGHT_RATIO ** 0.1 / player_ratio ** 0.1
