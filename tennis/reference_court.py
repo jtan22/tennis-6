@@ -1,9 +1,19 @@
 import cv2
 import numpy as np
+import math
+import pandas as pd
 from scipy.spatial import distance
 from typing import List, Dict, Tuple, Optional, Any
-from .utils import get_bottom_line_center_point, get_bounding_box_center_point, \
-    get_distance_between_points, get_initial_horizontal_velocity, get_distance_by_time
+from .utils import get_bottom_line_center_point, \
+    get_bounding_box_center_point, \
+    get_distance_between_points, \
+    get_initial_horizontal_velocity, \
+    get_horizontal_distance_by_time, \
+    get_horizontal_velocity_by_time, \
+    get_initial_vertical_velocity, \
+    get_vertical_distances_and_velocities, \
+    get_hypotenuse, \
+    get_player_height
 from .constants import DOUBLES_LINE_WIDTH, DOUBLES_ALLEY_WIDTH, RUN_BACK_DEPTH, \
     SIDE_RUN_WIDTH, HALF_COURT_DEPTH, NO_MANS_LAND_DEPTH, REFERENCE_COURT_MARGIN_X, \
     REFERENCE_COURT_MARGIN_Y, CENTER_LINE_DEPTH
@@ -279,20 +289,50 @@ class ReferenceCourt:
                 i += 1
                 continue
                 
-            hit_frame = hits_and_bounces[i]
-            bounce_frame = hits_and_bounces[i + 1]
+            frame_count = hits_and_bounces[i + 1] - hits_and_bounces[i]
             
-            ball_point_1 = get_bounding_box_center_point(ball_positions[hit_frame][1])
-            ball_point_2 = get_bounding_box_center_point(ball_positions[bounce_frame][1])
+            ball_point_1 = get_bounding_box_center_point(ball_positions[hits_and_bounces[i]][1])
+            ball_point_2 = get_bounding_box_center_point(ball_positions[hits_and_bounces[i + 1]][1])
             
-            frame_count = bounce_frame - hit_frame
             player_box = self._get_player_box(player_positions, hits_and_bounces, i, far_player, near_player)
             start_point, end_point = self._get_start_and_end_points(player_box, i, ball_point_1, ball_point_2)
             
-            calculated_coordinates = self._calculate_flight_path(start_point, end_point, frame_count, fps)
+            ball_hit_height = self._get_ball_hit_height(player_box, i, ball_point_1)
+            calculated_coordinates = self._calculate_flight_path(start_point, end_point, frame_count, fps, ball_hit_height)
             self._replace_ball_coordinates(hits_and_bounces[i], calculated_coordinates)
             
             i += 1
+        
+        df = pd.DataFrame({
+            'ball_position': self.ball_coordinates,
+            'frame': range(len(self.ball_coordinates)),
+        })
+        df.to_csv('reference_data_frame.csv', index=False)
+
+    def _get_ball_hit_height(self, 
+                             player_box: List[int], 
+                             hits_and_bounces_index: int, 
+                             ball_point: Tuple[int, int]) -> float:
+        hit_bounce_pattern = hits_and_bounces_index % 4
+        if hit_bounce_pattern ==1 or hit_bounce_pattern == 3:
+            return 0
+
+        # Calculate the height of the ball at the moment of hit or bounce       
+        player_ratio = (player_box[2] - player_box[0]) / (player_box[3] - player_box[1])
+        player_height = get_player_height(player_ratio)
+        if hit_bounce_pattern == 0:  # Far hit and bounce
+            ball_player_ratio = (player_box[3] - ball_point[1]) / (player_box[3] - player_box[1])
+            return round(player_height * ball_player_ratio, 2)
+        else:  # Near hit and bounce
+            # Move player feet 1 meter up
+            player_feet_point = (player_box[2], player_box[3])
+            player_feet_reference_point = self.get_reference_coordinate(player_feet_point)
+            player_hitting_reference_point = (player_feet_reference_point[0], player_feet_reference_point[1] - 1 * self.pixel_to_meter_ratio)
+            player_hitting_point = self.get_original_coordinate(player_hitting_reference_point)
+            ball_player_ratio = (player_hitting_point[1] - ball_point[1]) / (player_box[3] - player_box[1])
+            if ball_player_ratio < 0:
+                ball_player_ratio = 0.01
+            return round(player_height * ball_player_ratio, 2)
 
     def _get_player_box(self, 
                       player_positions: List[Dict[int, List]], 
@@ -364,7 +404,8 @@ class ReferenceCourt:
                              start_point: Tuple[int, int], 
                              end_point: Tuple[int, int], 
                              frame_count: int, 
-                             fps: float) -> List[Tuple[int, int]]:
+                             fps: float,
+                             ball_hit_height: float = 0) -> List[Tuple[int, int]]:
         """
         Calculate the ball's flight path using trajectory equation with air drag.
         
@@ -379,19 +420,41 @@ class ReferenceCourt:
         """
         distance_meters = get_distance_between_points(start_point, end_point) / self.pixel_to_meter_ratio
         time_seconds = frame_count / fps
-        initial_velocity = get_initial_horizontal_velocity(distance_meters, time_seconds)
-        
+        initial_horizontal_velocity = get_initial_horizontal_velocity(distance_meters, time_seconds)
+        print(f'distance: {distance_meters}, time: {time_seconds}, velocity: {initial_horizontal_velocity}')
+
         calculated_coordinates = [start_point]
+        vertical_distances = None
+        vertical_velocities = None
+
+        if ball_hit_height > 0:
+            initial_vertical_velocity = get_initial_vertical_velocity(ball_hit_height, time_seconds)
+            print(f'Initial vertical velocity: {initial_vertical_velocity}')
+            vertical_distances, vertical_velocities = get_vertical_distances_and_velocities(
+                initial_vertical_velocity, 
+                ball_hit_height, 
+                time_seconds / frame_count)
+
+            initial_velocity = get_hypotenuse(initial_horizontal_velocity, initial_vertical_velocity)
+            print(f'Initial velocity angle: {math.degrees(math.atan(initial_vertical_velocity / initial_horizontal_velocity))}')
+
+            calculated_coordinates = [(start_point[0], start_point[1], ball_hit_height, round(initial_velocity, 2))]
         
         # Calculate coordinates for intermediate frames
         for i in range(1, frame_count):
             time_at_frame = i / fps
-            distance_at_time = get_distance_by_time(initial_velocity, time_at_frame)
+            distance_at_time = get_horizontal_distance_by_time(initial_horizontal_velocity, time_at_frame)
             ratio = distance_at_time / distance_meters if distance_meters > 0 else 0
             
             x = start_point[0] + ratio * (end_point[0] - start_point[0])
             y = start_point[1] + ratio * (end_point[1] - start_point[1])
-            calculated_coordinates.append((int(x), int(y)))
+            if ball_hit_height > 0:
+                h = vertical_distances[i]
+                horizontal_velocity = get_horizontal_velocity_by_time(initial_velocity, time_at_frame)
+                v = get_hypotenuse(horizontal_velocity, vertical_velocities[i])
+                calculated_coordinates.append((int(x), int(y), round(h, 2), round(v, 2)))
+            else:
+                calculated_coordinates.append((int(x), int(y)))
             
         return calculated_coordinates
 
@@ -452,6 +515,16 @@ class ReferenceCourt:
         x = int(coordinate[0] + self.canvas_x1)
         y = int(coordinate[1] + self.canvas_y1)
         cv2.circle(frame, (x, y), size, color, -1)
+
+        if len(coordinate) == 4:
+            cv2.putText(
+                frame, f"h: {coordinate[2]}", (x + 10, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2
+            )
+            cv2.putText(
+                frame, f"v: {coordinate[3]}", (x + 10, y + 20),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2
+            )
 
     def _draw_court(self, frame: np.ndarray) -> np.ndarray:
         """

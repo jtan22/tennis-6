@@ -2,6 +2,7 @@ from ultralytics import YOLO
 import cv2
 import pickle
 import torch
+import pandas as pd
 from .utils import get_bottom_line_center_point
 
 class PlayerTracker:
@@ -63,6 +64,20 @@ class PlayerTracker:
                     for track_id, bounding_box in person_positions_per_frame.items() 
                     if track_id in chosen_players}
             self.player_positions.append(player_positions_per_frame)
+
+        player_positions_1 = [player[1] for player in self.player_positions if 1 in player]
+        player_positions_2 = [player[2] for player in self.player_positions if 2 in player]
+        df = pd.DataFrame({
+            'player_position_1': player_positions_1,
+            'player_position_2': player_positions_2,
+            'frame': range(len(self.player_positions)),
+        })
+        player_df_1 = pd.DataFrame(player_positions_1, columns=['x1', 'y1', 'x2', 'y2'])
+        player_df_2 = pd.DataFrame(player_positions_2, columns=['x1', 'y1', 'x2', 'y2'])
+        df['player_1_ratio'] = round((player_df_1['x2'] - player_df_1['x1']) / (player_df_1['y2'] - player_df_1['y1']), 2)
+        df['player_2_ratio'] = round((player_df_2['x2'] - player_df_2['x1']) / (player_df_2['y2'] - player_df_2['y1']), 2)
+        df.to_csv('player_data_frame.csv', index=False)
+
 
     # Choose 2 persons have the shortest distance to any of the baselines
     def choose_players(self, court_keypoints, person_positions_per_frame):
