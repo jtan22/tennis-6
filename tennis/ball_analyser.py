@@ -41,8 +41,9 @@ class BallAnalyser:
             df['y_diff'] >= 0,
             df['velocity'],
             -df['velocity']
-        )
+        ).astype(float)
         df['velocity_vector_delta'] = df['velocity_vector'].diff().round(2)
+        df['velocity_vector_delta'] = df['velocity_vector_delta'].astype(float)
         
         # Calculate smoothed metrics
         window_size = min(5, len(df))
@@ -179,9 +180,10 @@ class BallAnalyser:
         start_index = candidate
         end_index = min(start_index + 10, self._get_next_near_hit(start_index, near_hits))
         min_velocity_delta_index = start_index
-        sum_velocity_delta = 0
+        sum_velocity_delta: float = 0
         
         for i in range(start_index + 1, end_index):
+            df['velocity_vector_delta'] = df['velocity_vector_delta'].astype(float)
             if df.loc[i, 'velocity_vector_delta'] < df.loc[min_velocity_delta_index, 'velocity_vector_delta']:
                 min_velocity_delta_index = i
             sum_velocity_delta += df.loc[i, 'velocity_vector_delta']

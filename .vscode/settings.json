@@ -1,0 +1,14 @@
+{
+    "python.analysis.diagnosticMode": "workspace",
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.useLibraryCodeForTypes": true,
+    "python.analysis.indexing": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.completeFunctionCalls": true,
+    "python.analysis.typeHints": {
+        "List": {
+            "type": "list"
+        }
+    }
+}

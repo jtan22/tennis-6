@@ -21,7 +21,7 @@ def read_video(video_path):
 
 def save_video(video_frames, fps, video_path):
     # Get 4-character code for MJPG codec
-    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+    fourcc = cv2.VideoWriter_fourcc(*'MJPG') # type: ignore
     frame_size = (video_frames[0].shape[1], video_frames[0].shape[0])
     out = cv2.VideoWriter(video_path, fourcc, fps, frame_size)
     for frame in video_frames:

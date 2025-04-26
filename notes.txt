@@ -86,109 +86,122 @@ time:       [0.   0.05 0.1  0.15 0.2  0.25 0.3  0.35 0.4  0.45 0.5  0.55 0.6  0.
 0.33/0.5 = x/2
 x = 0.66/0.5 = 
 
-canvas size: 400 x 821
-court size: 282 x 610
 Processing player positions...
 Near player: 1, far player: 2
 Converting player and ball positions to reference court coordinates...
 Processing hit and bounce: 28 - 37
-Distance: 7.222869130754066, Time: 0.36, Initial horizontal velocity: 21.750154153513964 m/s
+Distance: 6.727379763325391, Time: 0.36, Initial horizontal velocity: 20.144867969346308 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 107 - 117
-Distance: 3.820603262738752, Time: 0.4, Initial horizontal velocity: 9.96552690249521 m/s
+Distance: 3.3273539473957374, Time: 0.4, Initial horizontal velocity: 8.631250809344541 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 117 - 137
-Near hit and bounce, 0.59 m, player_height: 1.8249735914051375 m
-Distance: 22.773819648255095, Time: 0.8, Initial horizontal velocity: 36.98145271054039 m/s
-Net clearance: 0.99 m
+Distance: 22.27388013730993, Time: 0.8, Initial horizontal velocity: 35.95438814960949 m/s
+No net clearance, its a bounce and hit
+Distance: 22.27388013730993, Time: 0.8, Initial horizontal velocity: 35.95438814960949 m/s
+Net clearance: 1.2 m
 Processing hit and bounce: 137 - 144
-Distance: 4.087866361333869, Time: 0.28, Initial horizontal velocity: 15.277971953321314 m/s
+Distance: 3.5101384086849055, Time: 0.28, Initial horizontal velocity: 13.034291653530833 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 144 - 165
-Far hit and bounce, 0.9 m, player_height: 1.7717889035859362 m
-Distance: 21.384000626183703, Time: 0.84, Initial horizontal velocity: 32.52764587724333 m/s
-Net clearance: 1.03 m
+Distance: 20.81627145415636, Time: 0.84, Initial horizontal velocity: 31.451194764338148 m/s
+No net clearance, its a bounce and hit
+Distance: 20.81627145415636, Time: 0.84, Initial horizontal velocity: 31.451194764338148 m/s
+Net clearance: 1.06 m
 Processing hit and bounce: 165 - 174
-Distance: 6.451693989178345, Time: 0.36, Initial horizontal velocity: 19.259268715928773 m/s
+Distance: 5.995849942303843, Time: 0.36, Initial horizontal velocity: 17.806700709251537 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 174 - 195
-Near hit and bounce, 0.74 m, player_height: 1.7945733358383555 m
-Distance: 23.622376365032583, Time: 0.84, Initial horizontal velocity: 36.90556725759876 m/s
-Net clearance: 1.15 m
+Distance: 23.168947453501744, Time: 0.84, Initial horizontal velocity: 36.001186407401846 m/s
+No net clearance, its a bounce and hit
+Distance: 23.168947453501744, Time: 0.84, Initial horizontal velocity: 36.001186407401846 m/s
+Net clearance: 1.35 m
 Processing hit and bounce: 195 - 204
-Distance: 3.814054162649634, Time: 0.36, Initial horizontal velocity: 11.053017597554321 m/s
+Distance: 3.294191060412252, Time: 0.36, Initial horizontal velocity: 9.491180535524686 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 204 - 223
-Far hit and bounce, 0.97 m, player_height: 1.7741472700811538 m
-Distance: 20.77446613948539, Time: 0.76, Initial horizontal velocity: 34.67482506938363 m/s
-Net clearance: 0.93 m
+Distance: 20.244563347476774, Time: 0.76, Initial horizontal velocity: 33.578708462451765 m/s
+No net clearance, its a bounce and hit
+Distance: 20.244563347476774, Time: 0.76, Initial horizontal velocity: 33.578708462451765 m/s
+Net clearance: 0.95 m
 Processing hit and bounce: 223 - 235
-Distance: 7.4646743575992645, Time: 0.48, Initial horizontal velocity: 16.90496085133367 m/s
+Distance: 6.969620740399007, Time: 0.48, Initial horizontal velocity: 15.695616179294483 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 235 - 255
-Near hit and bounce, 0.89 m, player_height: 1.8315122575849527 m
-Distance: 24.18433148793088, Time: 0.8, Initial horizontal velocity: 39.94098413126473 m/s
-Net clearance: 1.12 m
+Distance: 23.690334305748515, Time: 0.8, Initial horizontal velocity: 38.89398766367865 m/s
+No net clearance, its a bounce and hit
+Distance: 23.690334305748515, Time: 0.8, Initial horizontal velocity: 38.89398766367865 m/s
+Net clearance: 1.31 m
 Processing hit and bounce: 255 - 264
-Distance: 3.8336678993491335, Time: 0.36, Initial horizontal velocity: 11.112294931756376 m/s
+Distance: 3.235412079337808, Time: 0.36, Initial horizontal velocity: 9.315713769105706 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 264 - 284
-Far hit and bounce, 0.95 m, player_height: 1.7936167348528935 m
-Distance: 20.428951053055194, Time: 0.8, Initial horizontal velocity: 32.26073297878538 m/s
-Net clearance: 0.99 m
+Distance: 19.81923769756294, Time: 0.8, Initial horizontal velocity: 31.07272730402969 m/s
+No net clearance, its a bounce and hit
+Distance: 19.81923769756294, Time: 0.8, Initial horizontal velocity: 31.07272730402969 m/s
+Net clearance: 1.01 m
 Processing hit and bounce: 284 - 294
-Distance: 7.545127056460017, Time: 0.4, Initial horizontal velocity: 20.523294783768858 m/s
+Distance: 7.086173687188312, Time: 0.4, Initial horizontal velocity: 19.174981000166277 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 294 - 318
-Near hit and bounce, 0.74 m, player_height: 1.8277910057834867 m
-Distance: 23.43666459815155, Time: 0.96, Initial horizontal velocity: 31.967306193084266 m/s
-Net clearance: 1.34 m
+Distance: 22.978009467328214, Time: 0.96, Initial horizontal velocity: 31.170170170097386 m/s
+No net clearance, its a bounce and hit
+Distance: 22.978009467328214, Time: 0.96, Initial horizontal velocity: 31.170170170097386 m/s
+Net clearance: 1.55 m
 Processing hit and bounce: 318 - 327
-Distance: 4.842370127582154, Time: 0.36, Initial horizontal velocity: 14.195665015013551 m/s
+Distance: 4.263267986899838, Time: 0.36, Initial horizontal velocity: 12.417100906412243 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 327 - 349
-Far hit and bounce, 0.96 m, player_height: 1.766136225541017 m
-Distance: 20.026449101781626, Time: 0.88, Initial horizontal velocity: 28.613346067637895 m/s
-Net clearance: 1.01 m
+Distance: 19.458499521433428, Time: 0.88, Initial horizontal velocity: 27.615752298302205 m/s
+No net clearance, its a bounce and hit
+Distance: 19.458499521433428, Time: 0.88, Initial horizontal velocity: 27.615752298302205 m/s
+Net clearance: 1.03 m
 Processing hit and bounce: 349 - 363
-Distance: 8.756394829102044, Time: 0.56, Initial horizontal velocity: 17.248576897785153 m/s
+Distance: 8.303873454298301, Time: 0.56, Initial horizontal velocity: 16.273210891253793 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 363 - 391
-Near hit and bounce, 0.61 m, player_height: 1.8326412644815646 m
-Distance: 22.101483375796864, Time: 1.12, Initial horizontal velocity: 25.430598672590982 m/s
-Net clearance: 1.62 m
+Distance: 21.653505244561444, Time: 1.12, Initial horizontal velocity: 24.782536250285442 m/s
+No net clearance, its a bounce and hit
+Distance: 21.653505244561444, Time: 1.12, Initial horizontal velocity: 24.782536250285442 m/s
+Net clearance: 1.79 m
 Processing hit and bounce: 391 - 414
-Distance: 4.30996612080652, Time: 0.92, Initial horizontal velocity: 4.914658034260538 m/s
+Distance: 3.8340263382637314, Time: 0.92, Initial horizontal velocity: 4.348713309360463 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 414 - 432
-Far hit and bounce, 0.02 m, player_height: 1.7316003131150166 m
-Distance: 19.037230223072104, Time: 0.72, Initial horizontal velocity: 32.85801574455188 m/s
+Distance: 18.54150774792196, Time: 0.72, Initial horizontal velocity: 31.815934101937717 m/s
+No net clearance, its a bounce and hit
+Distance: 18.54150774792196, Time: 0.72, Initial horizontal velocity: 31.815934101937717 m/s
 Net clearance: 0.56 m
 Processing hit and bounce: 432 - 444
-Distance: 6.622857403577779, Time: 0.48, Initial horizontal velocity: 14.85635366994729 m/s
+Distance: 6.1233152938685915, Time: 0.48, Initial horizontal velocity: 13.658553737249864 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 444 - 474
-Near hit and bounce, 0.69 m, player_height: 1.8457769907936683 m
-Distance: 23.431330453222774, Time: 1.2, Initial horizontal velocity: 25.566391279877212 m/s
-Net clearance: 1.93 m
+Distance: 22.93214603581891, Time: 1.2, Initial horizontal velocity: 24.87272225248167 m/s
+No net clearance, its a bounce and hit
+Distance: 22.93214603581891, Time: 1.2, Initial horizontal velocity: 24.87272225248167 m/s
+Net clearance: 2.17 m
 Processing hit and bounce: 474 - 484
-Distance: 2.832980646885008, Time: 0.4, Initial horizontal velocity: 7.308421687843894 m/s
+Distance: 2.310279723864623, Time: 0.4, Initial horizontal velocity: 5.925394525978839 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 484 - 503
-Far hit and bounce, 0.73 m, player_height: 1.7789906947431708 m
-Distance: 19.96886644444922, Time: 0.76, Initial horizontal velocity: 33.013469620249396 m/s
-Net clearance: 0.91 m
+Distance: 19.429950915033857, Time: 0.76, Initial horizontal velocity: 31.918452544759273 m/s
+No net clearance, its a bounce and hit
+Distance: 19.429950915033857, Time: 0.76, Initial horizontal velocity: 31.918452544759273 m/s
+Net clearance: 0.93 m
 Processing hit and bounce: 503 - 516
-Distance: 7.643585604936992, Time: 0.52, Initial horizontal velocity: 16.011022253463388 m/s
+Distance: 7.144585425341347, Time: 0.52, Initial horizontal velocity: 14.881404597984583 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 516 - 542
-Near hit and bounce, 0.69 m, player_height: 1.6594976090674771 m
-Distance: 24.161735498769538, Time: 1.04, Initial horizontal velocity: 30.68680302652266 m/s
-Net clearance: 1.46 m
+Distance: 23.662332140186436, Time: 1.04, Initial horizontal velocity: 29.873061376856967 m/s
+No net clearance, its a bounce and hit
+Distance: 23.662332140186436, Time: 1.04, Initial horizontal velocity: 29.873061376856967 m/s
+Net clearance: 1.67 m
 Processing hit and bounce: 542 - 551
-Distance: 3.506708293043492, Time: 0.36, Initial horizontal velocity: 10.127487658320781 m/s
+Distance: 2.9295405185796626, Time: 0.36, Initial horizontal velocity: 8.406290378789999 m/s
 No net clearance, its a bounce and hit
 Processing hit and bounce: 551 - 570
-Far hit and bounce, 0.9 m, player_height: 1.744114015106377 m
-Distance: 20.404572621902673, Time: 0.76, Initial horizontal velocity: 33.90834227574098 m/s
-Net clearance: 1.01 m
+Distance: 19.82922085105716, Time: 0.76, Initial horizontal velocity: 32.7284744801126 m/s
+No net clearance, its a bounce and hit
+Distance: 19.82922085105716, Time: 0.76, Initial horizontal velocity: 32.7284744801126 m/s
+Net clearance: 1.03 m
+

@@ -20,7 +20,7 @@ class TestCalculateFlightPath(unittest.TestCase):
         fps = 30
         ball_hit_height = 1.5
 
-        result = self.reference_court._calculate_flight_path(start_point, end_point, frame_count, fps, ball_hit_height)
+        result = self.reference_court._calculate_horizontal_flight_path(start_point, end_point, frame_count, fps, ball_hit_height)
 
         # Check the first and last points
         self.assertEqual(result[0], (100, 200, 1.5, 5.39))  # Start point with height and velocity
@@ -36,7 +36,7 @@ class TestCalculateFlightPath(unittest.TestCase):
         fps = 30
         ball_hit_height = 0  # No height
 
-        result = self.reference_court._calculate_flight_path(start_point, end_point, frame_count, fps, ball_hit_height)
+        result = self.reference_court._calculate_horizontal_flight_path(start_point, end_point, frame_count, fps, ball_hit_height)
 
         # Check the first and last points
         self.assertEqual(result[0], (100, 200))  # Start point without height
@@ -50,7 +50,7 @@ class TestCalculateFlightPath(unittest.TestCase):
         fps = 30
         ball_hit_height = 1.5
 
-        result = self.reference_court._calculate_flight_path(start_point, end_point, frame_count, fps, ball_hit_height)
+        result = self.reference_court._calculate_horizontal_flight_path(start_point, end_point, frame_count, fps, ball_hit_height)
 
         # Ensure the result is empty
         self.assertEqual(result, [])
@@ -62,7 +62,7 @@ class TestCalculateFlightPath(unittest.TestCase):
         fps = 30
         ball_hit_height = 1.5
 
-        result = self.reference_court._calculate_flight_path(start_point, end_point, frame_count, fps, ball_hit_height)
+        result = self.reference_court._calculate_horizontal_flight_path(start_point, end_point, frame_count, fps, ball_hit_height)
 
         # Ensure all points are the same
         for point in result:
