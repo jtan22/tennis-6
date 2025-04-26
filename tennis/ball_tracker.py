@@ -45,7 +45,7 @@ class BallTracker:
         self.clean_ball_positions: List[Dict[int, List[int]]] = []
         self.complete_ball_positions: List[Dict[int, List[int]]] = []
         self.frame_count: int = 0
-        self.df: Optional[pd.DataFrame] = None
+        self.df: pd.DataFrame = pd.DataFrame()
         
         print(f"BallTracker initialized using {self.device} device")
 
@@ -149,7 +149,7 @@ class BallTracker:
             results = self.model.predict(frame, conf=self.confidence_threshold)[0]
             ball_positions = {}
             
-            for i, box in enumerate(results.boxes, start=1):
+            for i, box in enumerate(results.boxes, start=1): # type: ignore
                 # Convert to list and round to integer coordinates
                 bounding_box = [int(coord) for coord in box.xyxy.tolist()[0]]
                 ball_positions[i] = bounding_box
@@ -490,7 +490,7 @@ class BallTracker:
         
         while i < self.frame_count:
             # Skip if velocity is within acceptable range
-            if i >= len(self.df) or self.df.loc[i, 'velocity'] < cutoff_velocity:
+            if i >= len(self.df) or self.df.loc[i, 'velocity'] < cutoff_velocity: # type: ignore
                 i += 1
                 continue
                 
@@ -507,7 +507,7 @@ class BallTracker:
                         continue
                     else:
                         # Clear the next position as it's causing the issue
-                        self.df.loc[next_i, 'clean_ball_position'].clear()
+                        self.df.loc[next_i, 'clean_ball_position'].clear() # type: ignore
                         print(f'Cleared ball position at frame: {next_i}')
                         break
                         
@@ -515,7 +515,7 @@ class BallTracker:
                 i = next_i + 1
             else:
                 # Clear current position
-                self.df.loc[i, 'clean_ball_position'].clear()
+                self.df.loc[i, 'clean_ball_position'].clear() # type: ignore
                 print(f'Cleared ball position at frame: {i}')
                 # Skip ahead
                 i += 10

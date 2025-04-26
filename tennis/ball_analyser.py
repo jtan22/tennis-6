@@ -21,8 +21,8 @@ class BallAnalyser:
         self.frame_count = frame_count
         
         # Results storage
-        self.hits_and_bounces: Optional[List[Optional[int]]] = None
-        self.ball_hits: Optional[List[int]] = None
+        self.hits_and_bounces: List[int] = []
+        self.ball_hits: List[int] = []
 
     def find_ball_hits_and_bounces(self, fps: int, df: pd.DataFrame) -> None:
         """
@@ -41,9 +41,10 @@ class BallAnalyser:
             df['y_diff'] >= 0,
             df['velocity'],
             -df['velocity']
-        ).astype(float)
+        )
         df['velocity_vector_delta'] = df['velocity_vector'].diff().round(2)
-        df['velocity_vector_delta'] = df['velocity_vector_delta'].astype(float)
+        df['velocity_vector_delta'] = df['velocity_vector_delta']
+        df = df.astype({'velocity_vector_delta': 'float64'})
         
         # Calculate smoothed metrics
         window_size = min(5, len(df))
@@ -181,12 +182,11 @@ class BallAnalyser:
         end_index = min(start_index + 10, self._get_next_near_hit(start_index, near_hits))
         min_velocity_delta_index = start_index
         sum_velocity_delta: float = 0
-        
+
         for i in range(start_index + 1, end_index):
-            df['velocity_vector_delta'] = df['velocity_vector_delta'].astype(float)
-            if df.loc[i, 'velocity_vector_delta'] < df.loc[min_velocity_delta_index, 'velocity_vector_delta']:
+            if df.loc[i, 'velocity_vector_delta'] < df.loc[min_velocity_delta_index, 'velocity_vector_delta']: # type: ignore
                 min_velocity_delta_index = i
-            sum_velocity_delta += df.loc[i, 'velocity_vector_delta']
+            sum_velocity_delta += df.loc[i, 'velocity_vector_delta'] # type: ignore
             
         return sum_velocity_delta, min_velocity_delta_index
 
@@ -455,7 +455,7 @@ class BallAnalyser:
                                near_hits: List[int], 
                                near_bounces: List[int], 
                                far_hits: List[int], 
-                               far_bounces: List[int]) -> List[Optional[int]]:
+                               far_bounces: List[int]) -> List[int]:
         """
         Sort all hits and bounces into expected sequence pattern:
         far-hit → near-bounce → near-hit → far-bounce

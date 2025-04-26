@@ -44,9 +44,9 @@ class CourtLineDetector:
         
         # Initialize keypoint storage
         self.predicted_keypoints = None
-        self.refined_predicted_keypoints = None
+        self.refined_predicted_keypoints = []
         self.homographied_keypoints = None
-        self.refined_homographied_keypoints = None
+        self.refined_homographied_keypoints = []
         self.court_keypoints = None
         
     def _get_device(self) -> torch.device:
@@ -85,7 +85,7 @@ class CourtLineDetector:
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
-    def predict_keypoints(self, image: np.ndarray) -> List[Tuple[int, int]]:
+    def predict_keypoints(self, image: np.ndarray) -> None:
         """
         Predict keypoints in the given image.
         
@@ -105,7 +105,7 @@ class CourtLineDetector:
             # After the transform, the image tensor will be of shape (3, 224, 224)
             # unsequeeze(0) adds a batch dimension, so the shape becomes (1, 3, 224, 224)
             # and the model expects input of shape (batch_size, 3, 224, 224)
-            image_tensor = self.transform(image_rgb).unsqueeze(0).to(self.device)
+            image_tensor = self.transform(image_rgb).unsqueeze(0).to(self.device) # type: ignore
         except Exception as e:
             logger.error(f"Error during image transformation: {e}")
             raise
@@ -142,7 +142,7 @@ class CourtLineDetector:
         """
         if self.predicted_keypoints is None:
             logger.warning("No predicted keypoints available. Run predict_keypoints first.")
-            return []
+            return
             
         self.refined_predicted_keypoints = self._refine_keypoints(image, self.predicted_keypoints)
         
@@ -269,7 +269,7 @@ class CourtLineDetector:
             # Only one line detected: [25,  75,  75, 125]
             return [lines]
         elif len(lines.shape) == 2:
-            return lines
+            return lines # type: ignore
         else:
             return []
 
@@ -290,13 +290,13 @@ class CourtLineDetector:
             l2 = Line((line2[0], line2[1]), (line2[2], line2[3]))
             
             # Find intersection
-            intersection = l1.intersection(l2)
+            intersection = l1.intersection(l2) # type: ignore
             
             # Process result
             if not intersection or len(intersection) == 0:
                 return None
             
-            if isinstance(intersection[0], sympy.geometry.point.Point2D):
+            if isinstance(intersection[0], sympy.geometry.point.Point2D): # type: ignore
                 x, y = intersection[0].coordinates
                 return (int(x), int(y))
             else:

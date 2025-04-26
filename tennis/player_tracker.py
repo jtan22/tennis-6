@@ -41,9 +41,9 @@ class PlayerTracker:
         class_id_name_dict = results.names
         person_positions_per_frame = {}
         # The results will contain the bounding boxes, track IDs, and class IDs
-        for box in results.boxes:
+        for box in results.boxes: # type: ignore
             # The track IDs are stored in the 'id' attribute of the boxes
-            track_id = int(box.id.tolist()[0])
+            track_id = int(box.id.tolist()[0]) # type: ignore
             # The bounding boxes are stored in the 'xyxy' attribute of the boxes
             # The 'xyxy' attribute contains a list of lists, where each inner list
             # contains the coordinates of the bounding box in the format [x1, y1, x2, y2]
