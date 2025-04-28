@@ -63,145 +63,120 @@ pip install ultralytics
 # U0 = (Vt^2)*(e^(g*x/Vt^2) - 1)/g*t
 
 
-
-Velocity: mean 26.992199661590522, std 36.207600045897195, cutoff 99.40739975338491
-Outlier: 194.64
-Clear ball position: 236
-Outlier: 615.03
-Clear ball position: 328
-Outlier: 102.94
-Clear ball position: 401
-Outlier: 345.56
-Clear ball position: 571
-Outlier: 107.04
-Clear ball position: 237
-Outlier: 184.62
-Clear ball position: 572
-
-time:       [0.   0.05 0.1  0.15 0.2  0.25 0.3  0.35 0.4  0.45 0.5  0.55 0.6  0.65, 0.7  0.75 0.8 ], 
- positions: [1.   1.10759015  1.19040155  1.24853762  1.2820746   1.29106192
-  1.27552248  1.23546333  1.17091435  1.08193171  0.96859764  0.83102014
-  0.66933255  0.48369304  0.27428397  0.04131119 -0.21499679]
-
-0.33/0.5 = x/2
-x = 0.66/0.5 = 
-
-Processing player positions...
-Near player: 1, far player: 2
 Converting player and ball positions to reference court coordinates...
 Processing hit and bounce: 28 - 37
-Distance: 6.727379763325391, Time: 0.36, Initial horizontal velocity: 20.144867969346308 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 28
+Ball hit height: 0 m
 Processing hit and bounce: 107 - 117
-Distance: 3.3273539473957374, Time: 0.4, Initial horizontal velocity: 8.631250809344541 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 107
+Ball hit height: 0 m
 Processing hit and bounce: 117 - 137
-Distance: 22.27388013730993, Time: 0.8, Initial horizontal velocity: 35.95438814960949 m/s
-No net clearance, its a bounce and hit
-Distance: 22.27388013730993, Time: 0.8, Initial horizontal velocity: 35.95438814960949 m/s
-Net clearance: 1.2 m
+Getting ball hit height: 117
+Player height: 1.76 m
+Ball hit height: 0.87 m
+Ball is on the net: 1.16 m
 Processing hit and bounce: 137 - 144
-Distance: 3.5101384086849055, Time: 0.28, Initial horizontal velocity: 13.034291653530833 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 137
+Ball hit height: 0 m
 Processing hit and bounce: 144 - 165
-Distance: 20.81627145415636, Time: 0.84, Initial horizontal velocity: 31.451194764338148 m/s
-No net clearance, its a bounce and hit
-Distance: 20.81627145415636, Time: 0.84, Initial horizontal velocity: 31.451194764338148 m/s
-Net clearance: 1.06 m
+Getting ball hit height: 144
+Player height: 1.81 m
+Ball hit height: 0.7 m
+Ball is on the net: 0.94 m
 Processing hit and bounce: 165 - 174
-Distance: 5.995849942303843, Time: 0.36, Initial horizontal velocity: 17.806700709251537 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 165
+Ball hit height: 0 m
 Processing hit and bounce: 174 - 195
-Distance: 23.168947453501744, Time: 0.84, Initial horizontal velocity: 36.001186407401846 m/s
-No net clearance, its a bounce and hit
-Distance: 23.168947453501744, Time: 0.84, Initial horizontal velocity: 36.001186407401846 m/s
-Net clearance: 1.35 m
+Getting ball hit height: 174
+Player height: 1.71 m
+Ball hit height: 1.0 m
+Ball is on the net: 1.29 m
 Processing hit and bounce: 195 - 204
-Distance: 3.294191060412252, Time: 0.36, Initial horizontal velocity: 9.491180535524686 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 195
+Ball hit height: 0 m
 Processing hit and bounce: 204 - 223
-Distance: 20.244563347476774, Time: 0.76, Initial horizontal velocity: 33.578708462451765 m/s
-No net clearance, its a bounce and hit
-Distance: 20.244563347476774, Time: 0.76, Initial horizontal velocity: 33.578708462451765 m/s
-Net clearance: 0.95 m
+Getting ball hit height: 204
+Player height: 1.84 m
+Ball hit height: 0.82 m
+Ball is on the net: 0.88 m
 Processing hit and bounce: 223 - 235
-Distance: 6.969620740399007, Time: 0.48, Initial horizontal velocity: 15.695616179294483 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 223
+Ball hit height: 0 m
 Processing hit and bounce: 235 - 255
-Distance: 23.690334305748515, Time: 0.8, Initial horizontal velocity: 38.89398766367865 m/s
-No net clearance, its a bounce and hit
-Distance: 23.690334305748515, Time: 0.8, Initial horizontal velocity: 38.89398766367865 m/s
-Net clearance: 1.31 m
+Getting ball hit height: 235
+Player height: 1.75 m
+Ball hit height: 1.17 m
+Ball is on the net: 1.26 m
 Processing hit and bounce: 255 - 264
-Distance: 3.235412079337808, Time: 0.36, Initial horizontal velocity: 9.315713769105706 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 255
+Ball hit height: 0 m
 Processing hit and bounce: 264 - 284
-Distance: 19.81923769756294, Time: 0.8, Initial horizontal velocity: 31.07272730402969 m/s
-No net clearance, its a bounce and hit
-Distance: 19.81923769756294, Time: 0.8, Initial horizontal velocity: 31.07272730402969 m/s
-Net clearance: 1.01 m
+Getting ball hit height: 264
+Player height: 1.77 m
+Ball hit height: 0.8 m
+Ball is on the net: 0.95 m
 Processing hit and bounce: 284 - 294
-Distance: 7.086173687188312, Time: 0.4, Initial horizontal velocity: 19.174981000166277 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 284
+Ball hit height: 0 m
 Processing hit and bounce: 294 - 318
-Distance: 22.978009467328214, Time: 0.96, Initial horizontal velocity: 31.170170170097386 m/s
-No net clearance, its a bounce and hit
-Distance: 22.978009467328214, Time: 0.96, Initial horizontal velocity: 31.170170170097386 m/s
-Net clearance: 1.55 m
+Getting ball hit height: 294
+Player height: 1.73 m
+Ball hit height: 1.02 m
+Ball is on the net: 1.48 m
 Processing hit and bounce: 318 - 327
-Distance: 4.263267986899838, Time: 0.36, Initial horizontal velocity: 12.417100906412243 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 318
+Ball hit height: 0 m
 Processing hit and bounce: 327 - 349
-Distance: 19.458499521433428, Time: 0.88, Initial horizontal velocity: 27.615752298302205 m/s
-No net clearance, its a bounce and hit
-Distance: 19.458499521433428, Time: 0.88, Initial horizontal velocity: 27.615752298302205 m/s
-Net clearance: 1.03 m
+Getting ball hit height: 327
+Player height: 1.76 m
+Ball hit height: 0.78 m
+Ball is on the net: 0.96 m
 Processing hit and bounce: 349 - 363
-Distance: 8.303873454298301, Time: 0.56, Initial horizontal velocity: 16.273210891253793 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 349
+Ball hit height: 0 m
 Processing hit and bounce: 363 - 391
-Distance: 21.653505244561444, Time: 1.12, Initial horizontal velocity: 24.782536250285442 m/s
-No net clearance, its a bounce and hit
-Distance: 21.653505244561444, Time: 1.12, Initial horizontal velocity: 24.782536250285442 m/s
-Net clearance: 1.79 m
+Getting ball hit height: 363
+Player height: 1.56 m
+Ball hit height: 0.85 m
+Ball is on the net: 1.69 m
 Processing hit and bounce: 391 - 414
-Distance: 3.8340263382637314, Time: 0.92, Initial horizontal velocity: 4.348713309360463 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 391
+Ball hit height: 0 m
 Processing hit and bounce: 414 - 432
-Distance: 18.54150774792196, Time: 0.72, Initial horizontal velocity: 31.815934101937717 m/s
-No net clearance, its a bounce and hit
-Distance: 18.54150774792196, Time: 0.72, Initial horizontal velocity: 31.815934101937717 m/s
-Net clearance: 0.56 m
+Getting ball hit height: 414
+Player height: 1.78 m
+Ball hit height: 0.02 m
+Ball is on the net: 0.56 m
 Processing hit and bounce: 432 - 444
-Distance: 6.1233152938685915, Time: 0.48, Initial horizontal velocity: 13.658553737249864 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 432
+Ball hit height: 0 m
 Processing hit and bounce: 444 - 474
-Distance: 22.93214603581891, Time: 1.2, Initial horizontal velocity: 24.87272225248167 m/s
-No net clearance, its a bounce and hit
-Distance: 22.93214603581891, Time: 1.2, Initial horizontal velocity: 24.87272225248167 m/s
-Net clearance: 2.17 m
+Getting ball hit height: 444
+Player height: 1.71 m
+Ball hit height: 0.96 m
+Ball is on the net: 2.09 m
 Processing hit and bounce: 474 - 484
-Distance: 2.310279723864623, Time: 0.4, Initial horizontal velocity: 5.925394525978839 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 474
+Ball hit height: 0 m
 Processing hit and bounce: 484 - 503
-Distance: 19.429950915033857, Time: 0.76, Initial horizontal velocity: 31.918452544759273 m/s
-No net clearance, its a bounce and hit
-Distance: 19.429950915033857, Time: 0.76, Initial horizontal velocity: 31.918452544759273 m/s
-Net clearance: 0.93 m
+Getting ball hit height: 484
+Player height: 1.6 m
+Ball hit height: 0.44 m
+Ball is on the net: 0.8 m
 Processing hit and bounce: 503 - 516
-Distance: 7.144585425341347, Time: 0.52, Initial horizontal velocity: 14.881404597984583 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 503
+Ball hit height: 0 m
 Processing hit and bounce: 516 - 542
-Distance: 23.662332140186436, Time: 1.04, Initial horizontal velocity: 29.873061376856967 m/s
-No net clearance, its a bounce and hit
-Distance: 23.662332140186436, Time: 1.04, Initial horizontal velocity: 29.873061376856967 m/s
-Net clearance: 1.67 m
+Getting ball hit height: 516
+Player height: 1.43 m
+Ball hit height: 0.91 m
+Ball is on the net: 1.58 m
 Processing hit and bounce: 542 - 551
-Distance: 2.9295405185796626, Time: 0.36, Initial horizontal velocity: 8.406290378789999 m/s
-No net clearance, its a bounce and hit
+Getting ball hit height: 542
+Ball hit height: 0 m
 Processing hit and bounce: 551 - 570
-Distance: 19.82922085105716, Time: 0.76, Initial horizontal velocity: 32.7284744801126 m/s
-No net clearance, its a bounce and hit
-Distance: 19.82922085105716, Time: 0.76, Initial horizontal velocity: 32.7284744801126 m/s
-Net clearance: 1.03 m
+Getting ball hit height: 551
+Player height: 1.78 m
+Ball hit height: 0.77 m
+Ball is on the net: 0.95 m
 

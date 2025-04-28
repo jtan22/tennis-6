@@ -31,6 +31,10 @@ class BoundingBox:
         """Get center point of bounding box."""
         return ((self.x1 + self.x2) // 2, (self.y1 + self.y2) // 2)
     
+    def __repr__(self) -> str:
+        """String representation of bounding box."""
+        return f"[{round(self.x1)}, {round(self.y1)}, {round(self.x2)}, {round(self.y2)}]"
+    
     def to_list(self) -> Tuple[int, int, int, int]:
         """Convert to list format."""
         return (self.x1, self.y1, self.x2, self.y2)

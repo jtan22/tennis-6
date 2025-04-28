@@ -94,6 +94,7 @@ class ReferenceCourt:
         # Initialize member variables that will be set later
         self.homography_matrix = None
         self.inverse_homography_matrix = None
+        self.homographied_keypoints = []
         self.reference_frames = []
         
         self._initialize_keypoints()
@@ -201,14 +202,14 @@ class ReferenceCourt:
         # Apply homography to reference keypoints
         best_keypoints = cv2.perspectiveTransform(reference_keypoints, self.homography_matrix)
         # map(int, point) is to apply int function to each value in point
-        homographied_keypoints = [(int(x), int(y)) for x, y in best_keypoints.reshape(-1, 2)]
+        self.homographied_keypoints = [(int(x), int(y)) for x, y in best_keypoints.reshape(-1, 2)]
         
         # Preserve detected keypoints where available
-        for i in range(len(homographied_keypoints)):
+        for i in range(len(self.homographied_keypoints)):
             if given_keypoints[i] is not None:
-                homographied_keypoints[i] = given_keypoints[i]
+                self.homographied_keypoints[i] = given_keypoints[i]
                 
-        return homographied_keypoints
+        return self.homographied_keypoints
 
     def get_reference_coordinate(self, original_coordinate: Tuple[int, int]) -> Tuple[int, int]:
         """
@@ -249,6 +250,25 @@ class ReferenceCourt:
                                 fps: float) -> None:
         self.reference_frames = self._create_reference_frames(player_positions, near_player, far_player, ball_positions)
         self._compute_ball_coordinates(hits_and_bounces, fps)
+        df = pd.DataFrame({
+            'frame_number': [frame.frame_number for frame in self.reference_frames],
+            'player_1_original_box': [frame.player_1.original_bounding_box for frame in self.reference_frames],
+            'player_1_reference_point': [frame.player_1.reference_coordinate for frame in self.reference_frames],
+            'player_1_action': [frame.player_1.action for frame in self.reference_frames],
+            'player_1_net_clearance': [frame.player_1.net_clearance for frame in self.reference_frames],
+            'player_2_original_box': [frame.player_2.original_bounding_box for frame in self.reference_frames],
+            'player_2_reference_point': [frame.player_2.reference_coordinate for frame in self.reference_frames],
+            'player_2_action': [frame.player_2.action for frame in self.reference_frames],
+            'player_2_net_clearance': [frame.player_2.net_clearance for frame in self.reference_frames],
+            'ball_original_box': [frame.ball.original_bounding_box for frame in self.reference_frames],
+            'ball_reference_point': [frame.ball.reference_coordinate for frame in self.reference_frames],
+            'ball_height': [frame.ball.height_meters for frame in self.reference_frames],
+            'ball_horizontal_velocity': [frame.ball.horizontal_velocity for frame in self.reference_frames],
+            'ball_vertial_velocity': [frame.ball.vertical_velocity for frame in self.reference_frames],
+            'ball_action': [frame.ball.action for frame in self.reference_frames],
+        })
+        df.to_csv('reference_frames.csv', index=False)
+
 
     def _compute_ball_coordinates(self, hits_and_bounces: List[int], fps: float) -> None:
         """
@@ -276,7 +296,9 @@ class ReferenceCourt:
             calculated_coordinates, calculated_horizontal_velocities = self._compute_horizontal_flight_path(start_coordinate, end_coordinate, frame_count, fps)
             self._replace_ball_coordinates_and_horozontal_velocity(hits_and_bounces[i], calculated_coordinates, calculated_horizontal_velocities)
             
+            print(f'Getting ball hit height: {hits_and_bounces[i]}')
             ball_hit_height = self._get_ball_hit_height(i, hitting_player, self.reference_frames[hits_and_bounces[i]].ball)
+            print(f'Ball hit height: {ball_hit_height} m')
             if ball_hit_height > 0:
                 ball_heights, vertical_velocities = self._compute_vertical_flight_path(frame_count, fps, ball_hit_height)
                 net_clearance = self._replace_ball_heights_and_vertical_velocities(hits_and_bounces[i], ball_heights, vertical_velocities)
@@ -314,10 +336,11 @@ class ReferenceCourt:
         """
         x1, y1, x2, y2 = bounding_box
         original_coordinate_bottom_center = ((x1 + x2) // 2, y2)
+        reference_coordinate = self.get_reference_coordinate(original_coordinate_bottom_center)
         reference_player = ReferencePlayer(
             player_id=player_id,
             original_bounding_box=BoundingBox(x1, y1, x2, y2),
-            reference_coordinate=self.get_reference_coordinate(original_coordinate_bottom_center),
+            reference_coordinate=reference_coordinate,
             action=PLAYER_RUN,
             net_clearance=-1
         )
@@ -361,13 +384,13 @@ class ReferenceCourt:
         hit_bounce_pattern = hit_bounce_index % 4
         if hit_bounce_pattern == BALL_FAR_HIT: # Far hit and bounce
             ball.action = BALL_FAR_HIT
-            return (ball.reference_coordinate[0], int(player.reference_coordinate[1] + 0.5 * self.pixel_to_meter_ratio))
+            return (ball.reference_coordinate[0], int(player.reference_coordinate[1] + player.original_bounding_box.width_height_ratio * self.pixel_to_meter_ratio))
         elif hit_bounce_pattern == BALL_NEAR_BOUNCE: # Near bounce and hit
             ball.action = BALL_NEAR_BOUNCE
             return ball.reference_coordinate
         elif hit_bounce_pattern == BALL_NEAR_HIT: # Near hit and bounce
             ball.action = BALL_NEAR_HIT
-            return (ball.reference_coordinate[0], int(player.reference_coordinate[1] - 0.5 * self.pixel_to_meter_ratio))
+            return (ball.reference_coordinate[0], int(player.reference_coordinate[1] - player.original_bounding_box.width_height_ratio * self.pixel_to_meter_ratio))
         else: # Far bounce and hit
             ball.action = BALL_FAR_BOUNCE
             return ball.reference_coordinate
@@ -394,7 +417,7 @@ class ReferenceCourt:
                                        fps: float) -> Tuple[List[Tuple[int, int]], List[float]]:
         distance_meters = get_distance_between_points(start_coordinate, end_coordinate) / self.pixel_to_meter_ratio
         time_seconds = frame_count / fps
-        initial_horizontal_velocity = get_initial_horizontal_velocity(distance_meters, time_seconds)
+        initial_horizontal_velocity = round(get_initial_horizontal_velocity(distance_meters, time_seconds), 2)
 
         calculated_coordinates = [start_coordinate]
         calculated_horizontal_velocities = [initial_horizontal_velocity]
@@ -426,23 +449,69 @@ class ReferenceCourt:
                              ball: ReferenceBall) -> float:
         hit_bounce_pattern = hit_bounce_index % 4
         if hit_bounce_pattern == BALL_FAR_HIT:  # Far hit and bounce
-            player_box = player.original_bounding_box
+            player_box = self._move_player_box_down(player.original_bounding_box)
+            # player_box = player.original_bounding_box
+            print(f'Player box ratio: {player_box.width_height_ratio}')
             ball_box = ball.original_bounding_box
             ball_player_ratio = (player_box.y2 - ball_box.y2) / (player_box.y2 - player_box.y1)
             if ball_player_ratio < 0:
                 ball_player_ratio = 0.01
-            return round(player.height_meters * ball_player_ratio, 2)
+            return round(self._get_player_height(player_box) * ball_player_ratio, 2)
         elif hit_bounce_pattern == BALL_NEAR_BOUNCE:  # Near bounce and hit
             return 0
         elif hit_bounce_pattern == BALL_NEAR_HIT:  # Near hit and bounce
-            player_box = player.original_bounding_box
+            player_box = self._move_player_box_up(player.original_bounding_box)
+            # player_box = player.original_bounding_box
+            print(f'Player box ratio: {player_box.width_height_ratio}')
             ball_box = ball.original_bounding_box
             ball_player_ratio = (player_box.y2 - ball_box.y2) / (player_box.y2 - player_box.y1)
             if ball_player_ratio < 0:
                 ball_player_ratio = 0.01
-            return round(player.height_meters * ball_player_ratio, 2)
+            return round(self._get_player_height(player_box) * ball_player_ratio, 2)
         else:  # Far bounce and hit
             return 0
+
+    def _move_player_box_down(self, player_box: BoundingBox) -> BoundingBox:
+        reference_top_left = self.get_reference_coordinate((player_box.x1, player_box.y1))
+        reference_bottom_right = self.get_reference_coordinate((player_box.x2, player_box.y2))
+        reference_top_left = (reference_top_left[0], round(reference_top_left[1] + player_box.width_height_ratio * self.pixel_to_meter_ratio))
+        reference_bottom_right = (reference_bottom_right[0], round(reference_bottom_right[1] + player_box.width_height_ratio * self.pixel_to_meter_ratio))
+        x1, y1 = self.get_original_coordinate(reference_top_left)
+        x2, y2 = self.get_original_coordinate(reference_bottom_right)
+        return BoundingBox(x1, y1, x2, y2)
+
+    def _move_player_box_up(self, player_box: BoundingBox) -> BoundingBox:
+        reference_top_left = self.get_reference_coordinate((player_box.x1, player_box.y1))
+        reference_bottom_right = self.get_reference_coordinate((player_box.x2, player_box.y2))
+        reference_top_left = (reference_top_left[0], round(reference_top_left[1] - player_box.width_height_ratio * self.pixel_to_meter_ratio))
+        reference_bottom_right = (reference_bottom_right[0], round(reference_bottom_right[1] - player_box.width_height_ratio * self.pixel_to_meter_ratio))
+        x1, y1 = self.get_original_coordinate(reference_top_left)
+        x2, y2 = self.get_original_coordinate(reference_bottom_right)
+        return BoundingBox(x1, y1, x2, y2)
+
+    def _get_player_height(self, player_box: BoundingBox) -> float:
+        """
+        Compute the height of the player based on the bounding box and 2 court base lines.
+             /-----\
+            /     / \
+           /     /   \
+          /-----/-----\
+         /     /       \
+        /-----/---------\
+        Use the top and bottom base lines we can find out the middle line width in pixels where the player stands.
+        Since we know the width of the doubles line in meters, we can calculate the player width in meters.
+        Using the player width in meters and the player bounding box, we can calculate the player height in meters.
+        """
+        top_base_line_width = self.homographied_keypoints[1][0] - self.homographied_keypoints[0][0]
+        bottom_base_line_width = self.homographied_keypoints[3][0] - self.homographied_keypoints[2][0]
+        base_line_diff = bottom_base_line_width - top_base_line_width
+        court_height = self.homographied_keypoints[2][1] - self.homographied_keypoints[0][1]
+        player_to_top_base_line = player_box.y2 - self.homographied_keypoints[0][1]
+        player_line_width = (player_to_top_base_line / court_height) * base_line_diff + top_base_line_width
+        player_width_meters = (player_box.width / player_line_width) * DOUBLES_LINE_WIDTH
+        player_height_meters = round((player_box.height / player_box.width) * player_width_meters, 2)
+        print(f'Player height: {player_height_meters} m')
+        return player_height_meters
 
     def _compute_vertical_flight_path(self, frame_count: int, fps: float, ball_hit_height: float) -> Tuple[List[float], List[float]]:
         """
@@ -457,7 +526,7 @@ class ReferenceCourt:
             Tuple of vertical distances and vertical velocities
         """
         time_seconds = frame_count / fps
-        initial_vertical_velocity = get_initial_vertical_velocity(ball_hit_height, time_seconds)
+        initial_vertical_velocity = round(get_initial_vertical_velocity(ball_hit_height, time_seconds), 2)
         vertical_distances, vertical_velocities = get_vertical_distances_and_velocities(
             initial_vertical_velocity, 
             ball_hit_height, 
