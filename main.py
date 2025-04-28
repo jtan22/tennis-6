@@ -47,12 +47,17 @@ def main():
     player_tracker.filter_out_non_players(court_keypoints)
 
     print('Converting player and ball positions to reference court coordinates...')
-    reference_court.convert_player_coordinates(player_tracker.player_positions)
-    reference_court.convert_ball_coordinates(player_tracker.player_positions, player_tracker.near_player, player_tracker.far_player, ball_tracker.complete_ball_positions, ball_analyser.hits_and_bounces, fps)
+    reference_court.compute_reference_coordinates(
+        player_tracker.player_positions, 
+        player_tracker.near_player, 
+        player_tracker.far_player, 
+        ball_tracker.complete_ball_positions, 
+        ball_analyser.hits_and_bounces, 
+        fps)
     
     print('Processing player stats...')
     player_stats = PlayerStats(450, reference_court.canvas_width)
-    player_stats.collect_stats(reference_court.player_coordinates, reference_court.ball_coordinates, ball_analyser.ball_hits, fps)
+    player_stats.collect_stats(reference_court.reference_frames)
     
     draw(input_frames, fps, player_tracker, ball_tracker, court_line_detector, reference_court, player_stats)
 

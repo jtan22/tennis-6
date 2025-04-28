@@ -20,19 +20,24 @@ class BoundingBox:
         return self.y2 - self.y1
     
     @property
+    def width_height_ratio(self) -> float:
+        """Get width to height ratio of bounding box."""
+        if self.height == 0:
+            return 0
+        return self.width / self.height
+    
+    @property
     def center(self) -> Tuple[int, int]:
         """Get center point of bounding box."""
         return ((self.x1 + self.x2) // 2, (self.y1 + self.y2) // 2)
     
-    def to_list(self) -> List[int]:
+    def to_list(self) -> Tuple[int, int, int, int]:
         """Convert to list format."""
-        return [self.x1, self.y1, self.x2, self.y2]
+        return (self.x1, self.y1, self.x2, self.y2)
     
     @classmethod
-    def from_list(cls, coords: List[int]) -> 'BoundingBox':
+    def from_list(cls, coords: Tuple[int, int, int, int]) -> 'BoundingBox':
         """Create bounding box from list."""
-        if len(coords) != 4:
-            raise ValueError(f"Expected 4 coordinates, got {len(coords)}")
         return cls(int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3]))
     
     @classmethod

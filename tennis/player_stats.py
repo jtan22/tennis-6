@@ -1,7 +1,13 @@
 import pandas as pd
 import cv2
 from copy import deepcopy
-from .constants import STATS_MARGIN_X, STATS_MARGIN_Y, DOUBLES_LINE_WIDTH, SIDE_RUN_WIDTH
+from typing import List, Dict, Tuple, Optional, Any
+
+from sympy import per
+
+from tennis.reference_frame import ReferenceFrame
+from .constants import PLAYER_HIT, STATS_MARGIN_X, STATS_MARGIN_Y, DOUBLES_LINE_WIDTH, SIDE_RUN_WIDTH
+from tennis.utils import get_distance_between_points
 
 class PlayerStats():
     def __init__(self, width, reference_court_canvas_width):
@@ -13,86 +19,64 @@ class PlayerStats():
         self.canvas_y2 = self.canvas_y1 + self.canvas_height
         self.meter_to_pixel_ratio = (DOUBLES_LINE_WIDTH + SIDE_RUN_WIDTH * 2) / reference_court_canvas_width
 
-    def get_distance_between_coordinates(self, c1, c2):
-        """
-        Calculates the distance between two players using their coordinates.
-        """
-        distance = ((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2) ** 0.5
-        return distance
-
-    def get_player_number_who_hit_ball(self, players_coordinates, ball_coordinates, frame_num):
-        distance1 = self.get_distance_between_coordinates(
-            players_coordinates[frame_num][1], ball_coordinates[frame_num][1])
-        distance2 = self.get_distance_between_coordinates(
-            players_coordinates[frame_num][2], ball_coordinates[frame_num][1])
-        
-        if distance1 < distance2:
-            return 1, 2
-        else:
-            return 2, 1
-
-    def get_player_distance(self, players_coordinates, frame_num, player_number):
-        coordinate1 = players_coordinates[frame_num][player_number]
-        coordinate2 = players_coordinates[frame_num + 1][player_number]
-        distance = self.get_distance_between_coordinates(coordinate1, coordinate2)
-        return distance * self.meter_to_pixel_ratio
-    
-    def get_ball_speed(self, ball_coordinates, frame_num, fps):
-        coordinate1 = ball_coordinates[frame_num][1]
-        coordinate2 = ball_coordinates[frame_num + 1][1]
-        distance = self.get_distance_between_coordinates(coordinate1, coordinate2)
-        speed_per_second = distance * self.meter_to_pixel_ratio * fps
-        # Convert to km/h
-        return speed_per_second * 3.6
-
-    def collect_stats(self, mini_player_coordinates, mini_ball_coordinates, ball_shot_frame_numbers, fps):
+    def collect_stats(self, reference_frames: List[ReferenceFrame]):
         """
         Collects player stats from the mini court coordinates and ball shot frame numbers.
         """
-        player_stats_data = [{
+        self.player_stats_data = [{
             'frame_num':0,
+            'player_1_last_player_distance':0.0,
+            'player_1_total_player_distance':0.0,
+            'player_2_last_player_distance':0.0,
+            'player_2_total_player_distance':0.0,
             'player_1_number_of_shots':0,
-            'player_1_last_shot_speed':0,
-            'player_1_total_shot_speed':0,
-            'player_1_last_player_distance':0,
-            'player_1_total_player_distance':0,
+            'player_1_last_shot_speed':0.0,
+            'player_1_total_shot_speed':0.0,
             'player_2_number_of_shots':0,
-            'player_2_last_shot_speed':0,
-            'player_2_total_shot_speed':0,
-            'player_2_last_player_distance':0,
-            'player_2_total_player_distance':0,
+            'player_2_last_shot_speed':0.0,
+            'player_2_total_shot_speed':0.0,
         }]
 
-        for shot in range(len(ball_shot_frame_numbers) - 1):
-            hitting_player, receiving_player = self.get_player_number_who_hit_ball(
-                mini_player_coordinates, mini_ball_coordinates, ball_shot_frame_numbers[shot])
-            for frame_num in range(ball_shot_frame_numbers[shot], ball_shot_frame_numbers[shot + 1] - 1):
-                player_stats = deepcopy(player_stats_data[-1])
-                player_stats['frame_num'] = frame_num
-                if frame_num == ball_shot_frame_numbers[shot]:
-                    player_stats[f'player_{hitting_player}_number_of_shots'] += 1
-                
-                last_shot_speed = self.get_ball_speed(mini_ball_coordinates, frame_num, fps)
-                player_stats[f'player_{hitting_player}_last_shot_speed'] = last_shot_speed
-                player_stats[f'player_{hitting_player}_total_shot_speed'] += last_shot_speed
+        for i in range(1, len(reference_frames)):
+            player_stats = deepcopy(self.player_stats_data[-1])
+            player_stats['frame_num'] = i
+            player_1_distance_pixels = get_distance_between_points(
+                reference_frames[i].player_1.reference_coordinate, 
+                reference_frames[i - 1].player_1.reference_coordinate)
+            player_1_distance_meters = round(player_1_distance_pixels * self.meter_to_pixel_ratio, 2)
+            player_2_distance_pixels = get_distance_between_points(
+                reference_frames[i].player_2.reference_coordinate, 
+                reference_frames[i - 1].player_2.reference_coordinate)
+            player_2_distance_meters = round(player_2_distance_pixels * self.meter_to_pixel_ratio, 2)
+            player_stats[f'player_1_last_player_distance'] = player_1_distance_meters
+            player_1_total_distance = round(player_stats[f'player_1_total_player_distance'] + player_1_distance_meters, 2)
+            player_stats[f'player_1_total_player_distance'] = player_1_total_distance
+            player_stats[f'player_2_last_player_distance'] = player_2_distance_meters
+            player_2_total_distance = round(player_stats[f'player_2_total_player_distance'] + player_2_distance_meters, 2)
+            player_stats[f'player_2_total_player_distance'] = player_2_total_distance
+            if reference_frames[i].player_1.action == PLAYER_HIT:
+                velocity_meters_per_second = reference_frames[i].ball.velocity
+                if velocity_meters_per_second > 0:
+                    player_stats[f'player_1_number_of_shots'] += 1
+                    velocity_km_per_hour = round(velocity_meters_per_second * 3.6, 2)
+                    player_stats[f'player_1_last_shot_speed'] = velocity_km_per_hour
+                    player_stats[f'player_1_total_shot_speed'] += velocity_km_per_hour
+            if reference_frames[i].player_2.action == PLAYER_HIT:
+                velocity_meters_per_second = reference_frames[i].ball.velocity
+                if velocity_meters_per_second > 0:
+                    player_stats[f'player_2_number_of_shots'] += 1
+                    velocity_km_per_hour = round(velocity_meters_per_second * 3.6, 2)
+                    player_stats[f'player_2_last_shot_speed'] = velocity_km_per_hour
+                    player_stats[f'player_2_total_shot_speed'] += velocity_km_per_hour
+            self.player_stats_data.append(player_stats)
 
-                player_distance = self.get_player_distance(mini_player_coordinates, frame_num, hitting_player)                
-                player_stats[f'player_{hitting_player}_last_player_distance'] = player_distance
-                player_stats[f'player_{hitting_player}_total_player_distance'] += player_distance
-
-                player_distance = self.get_player_distance(mini_player_coordinates, frame_num, receiving_player)
-                player_stats[f'player_{receiving_player}_last_player_distance'] = player_distance
-                player_stats[f'player_{receiving_player}_total_player_distance'] += player_distance
-                player_stats_data.append(player_stats)
-
-        self.player_stats_data_df = pd.DataFrame(player_stats_data)
-        frames_df = pd.DataFrame({'frame_num': list(range(len(mini_player_coordinates)))})
-        self.player_stats_data_df = pd.merge(frames_df, self.player_stats_data_df, on='frame_num', how='left')
-        self.player_stats_data_df = self.player_stats_data_df.ffill()
+        df = pd.DataFrame(self.player_stats_data)
+        df.to_csv('player_stats.csv', index=False)
+        print("Player stats collected and saved to player_stats.csv")
     
     def draw(self, input_frames):
         output_frames = []
-        for index, row in self.player_stats_data_df.iterrows():
+        for index, per_frame_data in enumerate(self.player_stats_data):
             frame = input_frames[index]
             overlay = frame.copy()
             cv2.rectangle(overlay, (self.canvas_x1, self.canvas_y1), (self.canvas_x2, self.canvas_y2), (0, 0, 0), -1)
@@ -106,28 +90,30 @@ class PlayerStats():
             text = "Last Shot Speed"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 10, self.canvas_y1 + 80), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
-            text = f"{row['player_1_last_shot_speed']:.1f} km/h      {row['player_2_last_shot_speed']:.1f} km/h"
+            text = f"{per_frame_data['player_1_last_shot_speed']} km/h      {per_frame_data['player_2_last_shot_speed']} km/h"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 200, self.canvas_y1 + 80), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-            text = "Total Shot Speed"
+            text = "Average Shot Speed"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 10, self.canvas_y1 + 120),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
-            text = f"{row['player_1_total_shot_speed']:.1f} km/h      {row['player_2_total_shot_speed']:.1f} km/h"
+            player_1_average_shot_speed = round(per_frame_data['player_1_total_shot_speed'] / max(1, per_frame_data['player_1_number_of_shots']), 2)
+            player_2_average_shot_speed = round(per_frame_data['player_2_total_shot_speed'] / max(1, per_frame_data['player_2_number_of_shots']), 2)
+            text = f"{player_1_average_shot_speed} km/h      {player_2_average_shot_speed} km/h"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 200, self.canvas_y1 + 120),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)            
             
             text = "Last Player Distance"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 10, self.canvas_y1 + 160),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
-            text = f"{row['player_1_last_player_distance']:.1f} m          {row['player_2_last_player_distance']:.1f} m"
+            text = f"{per_frame_data['player_1_last_player_distance']} m          {per_frame_data['player_2_last_player_distance']} m"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 200, self.canvas_y1 + 160),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
             text = "Total Player Distance"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 10, self.canvas_y1 + 200),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
-            text = f"{row['player_1_total_player_distance']:.1f} m          {row['player_2_total_player_distance']:.1f} m"
+            text = f"{per_frame_data['player_1_total_player_distance']} m          {per_frame_data['player_2_total_player_distance']} m"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 200, self.canvas_y1 + 200),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 

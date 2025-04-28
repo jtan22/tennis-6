@@ -40,10 +40,10 @@ class BallTracker:
         self.model.to(self.device)
         
         # Initialize tracking data structures
-        self.multiple_ball_positions: List[Dict[int, List[int]]] = []
-        self.single_ball_positions: List[Dict[int, List[int]]] = []
-        self.clean_ball_positions: List[Dict[int, List[int]]] = []
-        self.complete_ball_positions: List[Dict[int, List[int]]] = []
+        self.multiple_ball_positions: List[Dict[int, Tuple[int, int, int, int]]] = []
+        self.single_ball_positions: List[Dict[int, Tuple[int, int, int, int]]] = []
+        self.clean_ball_positions: List[Dict[int, Tuple[int, int, int, int]]] = []
+        self.complete_ball_positions: List[Dict[int, Tuple[int, int, int, int]]] = []
         self.frame_count: int = 0
         self.df: pd.DataFrame = pd.DataFrame()
         
@@ -132,7 +132,7 @@ class BallTracker:
         self.frame_count = len(self.multiple_ball_positions)
         print(f'Detected balls in {self.frame_count} frames')
 
-    def _detect_ball_positions_per_frame(self, frame: np.ndarray) -> Dict[int, List[int]]:
+    def _detect_ball_positions_per_frame(self, frame: np.ndarray) -> Dict[int, Tuple[int, int, int, int]]:
         """
         Detect ball positions in a single frame.
         
@@ -194,7 +194,7 @@ class BallTracker:
             
         print(f"Completed ball position synthesis after {iteration_count} iterations")
 
-    def _remove_extra_balls_detected(self) -> List[Dict[int, List[int]]]:
+    def _remove_extra_balls_detected(self) -> List[Dict[int, Tuple[int, int, int, int]]]:
         """
         Select the best ball from multiple detections in each frame.
         
@@ -224,7 +224,7 @@ class BallTracker:
             
         return single_ball_positions
 
-    def _find_adjacent_ball_position(self, index: int, look_backward: bool = True) -> Optional[List[int]]:
+    def _find_adjacent_ball_position(self, index: int, look_backward: bool = True) -> Optional[Tuple[int, int, int, int]]:
         """
         Find the nearest ball position in adjacent frames.
         
@@ -254,9 +254,9 @@ class BallTracker:
         return None
 
     def _find_best_ball_position(self, 
-                              last_ball_position: List[int],
-                              ball_positions: Dict[int, List[int]],
-                              next_ball_position: List[int]) -> List[int]:
+                              last_ball_position: Tuple[int, int, int, int],
+                              ball_positions: Dict[int, Tuple[int, int, int, int]],
+                              next_ball_position: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
         """
         Find the most likely ball position based on trajectory.
         
@@ -345,7 +345,7 @@ class BallTracker:
         # Velocity calculations
         df['velocity'] = np.sqrt(df['x_diff']**2 + df['y_diff']**2).round(2)
         
-    def _interpolate_ball_positions(self, ball_positions: List[Dict[int, List[int]]]) -> List[Dict[int, List[int]]]:
+    def _interpolate_ball_positions(self, ball_positions: List[Dict[int, Tuple[int, int, int, int]]]) -> List[Dict[int, Tuple[int, int, int, int]]]:
         """
         Fill in missing ball positions using interpolation.
         
@@ -412,7 +412,7 @@ class BallTracker:
                 
         return valid_ranges
 
-    def _interpolate_missing_range(self, missing_range: Tuple[int, int], bounding_boxes: List[List[int]]) -> None:
+    def _interpolate_missing_range(self, missing_range: Tuple[int, int], bounding_boxes: List[Tuple[int, int, int, int]]) -> None:
         """
         Interpolate a range of missing ball positions.
         

@@ -148,7 +148,7 @@ def get_vertical_distances_and_velocities(v0, h_initial, dt, t_max=5.0):
         t += dt
         
         distances.append(round(y, 2))
-        velocities.append(v)
+        velocities.append(round(v, 2))
         
         if t > t_max: # Safety break to prevent infinite loops
             break
@@ -156,7 +156,7 @@ def get_vertical_distances_and_velocities(v0, h_initial, dt, t_max=5.0):
     return distances, velocities
 
 def get_hypotenuse(a, b):
-    return (a ** 2 + b **2) ** 0.5
+    return round((a ** 2 + b **2) ** 0.5, 2)
 
 def get_player_height(player_ratio):
     return DEFAULT_PLAYER_HEIGHT * PLAYER_STANDING_WIDTH_HEIGHT_RATIO ** 0.1 / player_ratio ** 0.1
