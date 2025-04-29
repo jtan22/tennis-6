@@ -564,13 +564,7 @@ class BallTracker:
                 box = BoundingBox.from_list(bbox)
                 
                 # Draw bounding box
-                cv2.rectangle(frame_copy, (box.x1, box.y1), (box.x2, box.y2), (0, 0, 255), 2)
-                
-                # Draw track ID
-                cv2.putText(
-                    frame_copy, str(track_id), (box.x1, box.y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2
-                )
+                cv2.rectangle(frame_copy, (box.x1, box.y1), (box.x2, box.y2), (0, 255, 0), 2)
                 
                 # Add additional information if available
                 if self.df is not None and i < len(self.df):
@@ -578,16 +572,16 @@ class BallTracker:
                     if show_velocity:
                         velocity = self.df.loc[i, 'velocity']
                         cv2.putText(
-                            frame_copy, f"v: {velocity:.1f}", (box.x1, box.y2 + 20),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2
+                            frame_copy, f"V: {velocity:.1f}", (box.x2 + 10, box.y1),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
                         )
                     
                     # Add position information
                     if show_position:
                         x, y = self.df.loc[i, 'x'], self.df.loc[i, 'y']
                         cv2.putText(
-                            frame_copy, f"({x}, {y})", (box.x2 + 5, box.y1),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2
+                            frame_copy, f"({x}, {y})", (box.x2 + 10, box.y1 + 25),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
                         )
                         
             output_frames.append(frame_copy)

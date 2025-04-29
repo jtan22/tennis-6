@@ -66,10 +66,10 @@ def get_horizontal_velocity_by_time(initial_velocity, time):
 
 # Upward acceleration:   -g - (rho * Cd * A * v**2) / (2 * m)
 # Downward acceleration: -g + (rho * Cd * A * v**2) / (2 * m) 
-def simulate_vertical_motion(v0, h, rho, Cd, A, m, g):
+def simulate_vertical_motion(v0, h_initial, h_final, rho, Cd, A, m, g):
     dt = 0.001  # Time step
     t = 0
-    y = h
+    y = h_initial
     v = v0
     
     positions = []
@@ -87,16 +87,17 @@ def simulate_vertical_motion(v0, h, rho, Cd, A, m, g):
     v = 0
     
     # Downward motion
-    while y > 0:
+    while y > h_final:
         v = v + dt * (-g + (rho * Cd * A * v**2) / (2 * m))
         y = y + v * dt
         t += dt
         positions.append(y)
         times.append(t)
     
-    return t
+    return t, y
 
-def get_initial_vertical_velocity(initial_height, total_seconds):
+def get_initial_vertical_velocity(initial_height, final_height, total_seconds):
+    print(f'Initial height: {initial_height}, Final height: {final_height}, Total seconds: {total_seconds}')
     # Initial guess for v0
     v0_guess = DEFAULT_VERTICAL_VELOCITY
 
@@ -105,14 +106,15 @@ def get_initial_vertical_velocity(initial_height, total_seconds):
     max_iterations = 1000
     last_2_v0 = deque(maxlen=2)
     for i in range(max_iterations):
-        time_of_flight = simulate_vertical_motion(v0_guess, 
+        time_of_flight, height_reached = simulate_vertical_motion(v0_guess, 
                                                   initial_height, 
+                                                  final_height,
                                                   AIR_DENSITY, 
                                                   BALL_DRAG_COEFFICIENT, 
                                                   BALL_CROSS_SECTION, 
                                                   BALL_MASS, 
                                                   GRAVITY)
-        # print(f'iteration: {i}, time_of_flight: {time_of_flight}, vo_guess: {v0_guess}')
+        print(f'iteration: {i}, time_of_flight: {time_of_flight}, height_reached: {height_reached}, vo_guess: {v0_guess}')
 
         if v0_guess in last_2_v0:
             v0_guess = sum(last_2_v0) / len(last_2_v0)

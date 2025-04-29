@@ -110,18 +110,14 @@ class PlayerTracker:
     # Draw bounding boxes on the frames
     def draw(self, input_frames):
         output_frames = []
+        color_red = (0, 0, 255)
+        color_blue = (255, 0, 0)
         for frame, player_positions_per_frame in zip(input_frames, self.player_positions):
             for track_id, bounding_box in player_positions_per_frame.items():
                 x1, y1, x2, y2 = bounding_box
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
                 # Draw the bounding box on the frame
                 # The bounding box is drawn in green color with a thickness of 2
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                # Draw the track ID above the bounding box
-                # The track ID is drawn in green color with a font scale of 1
-                # and a thickness of 2
-                # The text is drawn at the top-left corner of the bounding box
-                # The text is drawn slightly above the bounding box
-                cv2.putText(frame, str(track_id), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color_blue if track_id == self.far_player else color_red, 2)
             output_frames.append(frame)
         return output_frames

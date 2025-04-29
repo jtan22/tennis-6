@@ -85,37 +85,37 @@ class PlayerStats():
 
             text = "Player 1     Player 2"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 200, self.canvas_y1 + 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
             
             text = "Last Shot Speed"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 10, self.canvas_y1 + 80), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
             text = f"{per_frame_data['player_1_last_shot_speed']} km/h      {per_frame_data['player_2_last_shot_speed']} km/h"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 200, self.canvas_y1 + 80), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
 
             text = "Average Shot Speed"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 10, self.canvas_y1 + 120),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
             player_1_average_shot_speed = round(per_frame_data['player_1_total_shot_speed'] / max(1, per_frame_data['player_1_number_of_shots']), 2)
             player_2_average_shot_speed = round(per_frame_data['player_2_total_shot_speed'] / max(1, per_frame_data['player_2_number_of_shots']), 2)
             text = f"{player_1_average_shot_speed} km/h      {player_2_average_shot_speed} km/h"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 200, self.canvas_y1 + 120),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)            
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)            
             
             text = "Last Player Distance"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 10, self.canvas_y1 + 160),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
             text = f"{per_frame_data['player_1_last_player_distance']} m          {per_frame_data['player_2_last_player_distance']} m"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 200, self.canvas_y1 + 160),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
 
             text = "Total Player Distance"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 10, self.canvas_y1 + 200),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
             text = f"{per_frame_data['player_1_total_player_distance']} m          {per_frame_data['player_2_total_player_distance']} m"
             frame = cv2.putText(frame, text, (self.canvas_x1 + 200, self.canvas_y1 + 200),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
 
             output_frames.append(frame)
         

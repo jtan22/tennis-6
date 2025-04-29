@@ -1,32 +1,22 @@
-import re
-from venv import create
-from weakref import ref
 import cv2
-from networkx import hits
 import numpy as np
-import math
 import copy
 import pandas as pd
 from scipy.spatial import distance
-from typing import List, Dict, Tuple, Optional, Any
+from typing import List, Dict, Tuple
 
-from sympy import Li
 from tennis.bounding_box import BoundingBox
 from tennis.reference_frame import ReferenceFrame
 from tennis.reference_player import ReferencePlayer
 from tennis.reference_ball import ReferenceBall
 
-from tennis import reference_ball, reference_player
-from .utils import get_bottom_line_center_point, \
-    get_bounding_box_center_point, \
-    get_distance_between_points, \
+from .utils import get_distance_between_points, \
     get_initial_horizontal_velocity, \
     get_horizontal_distance_by_time, \
     get_horizontal_velocity_by_time, \
     get_initial_vertical_velocity, \
     get_vertical_distances_and_velocities, \
-    get_hypotenuse, \
-    get_player_height
+    get_hypotenuse
 from .constants import BALL_FAR_BOUNCE, DOUBLES_LINE_WIDTH, DOUBLES_ALLEY_WIDTH, RUN_BACK_DEPTH, \
     SIDE_RUN_WIDTH, HALF_COURT_DEPTH, NO_MANS_LAND_DEPTH, REFERENCE_COURT_MARGIN_X, \
     REFERENCE_COURT_MARGIN_Y, CENTER_LINE_DEPTH, BALL_FAR_HIT, BALL_NEAR_BOUNCE, \
@@ -70,7 +60,7 @@ class ReferenceCourt:
         self.canvas_width = canvas_width
         self.pixel_to_meter_ratio = self.canvas_width / (DOUBLES_LINE_WIDTH + 2 * SIDE_RUN_WIDTH)
         print(f'pixel_to_meter_ratio: {self.pixel_to_meter_ratio}')
-        self.canvas_depth = ((HALF_COURT_DEPTH + RUN_BACK_DEPTH) * 2) * self.pixel_to_meter_ratio
+        self.canvas_depth = round(((HALF_COURT_DEPTH + RUN_BACK_DEPTH) * 2) * self.pixel_to_meter_ratio)
 
         # Initialize canvas positions on the frame
         self.canvas_x2 = frame_width - REFERENCE_COURT_MARGIN_X
@@ -247,7 +237,7 @@ class ReferenceCourt:
                                 far_player: int, 
                                 ball_positions: List[Dict[int, Tuple[int, int, int, int]]], 
                                 hits_and_bounces: List[int], 
-                                fps: float) -> None:
+                                fps: int) -> None:
         self.reference_frames = self._create_reference_frames(player_positions, near_player, far_player, ball_positions)
         self._compute_ball_coordinates(hits_and_bounces, fps)
         df = pd.DataFrame({
@@ -269,16 +259,7 @@ class ReferenceCourt:
         })
         df.to_csv('reference_frames.csv', index=False)
 
-
-    def _compute_ball_coordinates(self, hits_and_bounces: List[int], fps: float) -> None:
-        """
-        Compute the ball coordinates for each reference frame.
-        
-        Args:
-            reference_frames: List of reference frames
-            hits_and_bounces: List of frame numbers of hits and bounces
-            fps: Frames per second of the video
-        """
+    def _compute_ball_coordinates(self, hits_and_bounces: List[int], fps: int) -> None:
         i = 0
         # hits_and_bounces in the order of far_hit, near_bounce, near_hit, far_bounce
         while i < len(hits_and_bounces) - 1:
@@ -290,19 +271,15 @@ class ReferenceCourt:
             print(f'Processing hit and bounce: {hits_and_bounces[i]} - {hits_and_bounces[i + 1]}')
             frame_count = hits_and_bounces[i + 1] - hits_and_bounces[i]
 
-            hitting_player = self._get_hitting_player(i, hits_and_bounces)
-            start_coordinate = self._get_start_coordinate(i, hitting_player, self.reference_frames[hits_and_bounces[i]].ball)
-            end_coordinate = self._get_end_coordinate(i, hitting_player, self.reference_frames[hits_and_bounces[i + 1]].ball)
-            calculated_coordinates, calculated_horizontal_velocities = self._compute_horizontal_flight_path(start_coordinate, end_coordinate, frame_count, fps)
-            self._replace_ball_coordinates_and_horozontal_velocity(hits_and_bounces[i], calculated_coordinates, calculated_horizontal_velocities)
-            
-            print(f'Getting ball hit height: {hits_and_bounces[i]}')
-            ball_hit_height = self._get_ball_hit_height(i, hitting_player, self.reference_frames[hits_and_bounces[i]].ball)
-            print(f'Ball hit height: {ball_hit_height} m')
-            if ball_hit_height > 0:
-                ball_heights, vertical_velocities = self._compute_vertical_flight_path(frame_count, fps, ball_hit_height)
-                net_clearance = self._replace_ball_heights_and_vertical_velocities(hits_and_bounces[i], ball_heights, vertical_velocities)
-                hitting_player.net_clearance = net_clearance
+            hit_bounce_pattern = i % 4
+            if hit_bounce_pattern == BALL_FAR_HIT:  # Far hit and bounce
+                self._computer_far_hit_near_bounce(hits_and_bounces, i, frame_count, fps)
+            elif hit_bounce_pattern == BALL_NEAR_BOUNCE:  # Near bounce and hit
+                self._computer_near_bounce_near_hit(hits_and_bounces, i, frame_count, fps)
+            elif hit_bounce_pattern == BALL_NEAR_HIT:  # Near hit and bounce
+                self._computer_near_hit_far_bounce(hits_and_bounces, i, frame_count, fps)
+            else:  # Far bounce and hit
+                self._computer_far_bounce_far_hit(hits_and_bounces, i, frame_count, fps)
 
             i += 1
 
@@ -342,7 +319,7 @@ class ReferenceCourt:
             original_bounding_box=BoundingBox(x1, y1, x2, y2),
             reference_coordinate=reference_coordinate,
             action=PLAYER_RUN,
-            net_clearance=-1
+            net_clearance=0
         )
         return reference_player
 
@@ -366,49 +343,85 @@ class ReferenceCourt:
         )
         return reference_ball
 
-    def _get_hitting_player(self, hit_bounce_index: int, hits_and_bounces: List[int]) -> ReferencePlayer:
-        hitting_player = None
-        hit_bounce_pattern = hit_bounce_index % 4
-        if hit_bounce_pattern == BALL_FAR_HIT:  # Far hit and bounce
-            hitting_player = self.reference_frames[hits_and_bounces[hit_bounce_index]].get_far_player()
-        elif hit_bounce_pattern == BALL_NEAR_BOUNCE:  # Near bounce and hit
-            hitting_player = self.reference_frames[hits_and_bounces[hit_bounce_index + 1]].get_near_player()
-        elif hit_bounce_pattern == BALL_NEAR_HIT:  # Near hit and bounce
-            hitting_player = self.reference_frames[hits_and_bounces[hit_bounce_index]].get_near_player()
-        else:  # Far bounce and hit
-            hitting_player = self.reference_frames[hits_and_bounces[hit_bounce_index + 1]].get_far_player()
+    def _computer_far_hit_near_bounce(self, hits_and_bounces: List[int], hit_bounce_index: int, frame_count: int, fps: int) -> None:
+        hitting_player = self.reference_frames[hits_and_bounces[hit_bounce_index]].get_far_player()
         hitting_player.action = PLAYER_HIT
-        return hitting_player
+        hitting_ball = self.reference_frames[hits_and_bounces[hit_bounce_index]].ball
+        hitting_ball.action = BALL_FAR_HIT
+        start_coordinate = (hitting_ball.reference_coordinate[0], int(hitting_player.reference_coordinate[1] + hitting_player.original_bounding_box.width_height_ratio * self.pixel_to_meter_ratio))
+        bouncing_ball = self.reference_frames[hits_and_bounces[hit_bounce_index + 1]].ball
+        bouncing_ball.action = BALL_NEAR_BOUNCE
+        end_coordinate = bouncing_ball.reference_coordinate
+        calculated_coordinates, calculated_horizontal_velocities = self._compute_horizontal_flight_path(start_coordinate, end_coordinate, frame_count, fps)
+        self._replace_ball_coordinates_and_horozontal_velocity(hits_and_bounces[hit_bounce_index], calculated_coordinates, calculated_horizontal_velocities)
 
-    def _get_start_coordinate(self, hit_bounce_index: int, player: ReferencePlayer, ball: ReferenceBall) -> Tuple[int, int]:
-        hit_bounce_pattern = hit_bounce_index % 4
-        if hit_bounce_pattern == BALL_FAR_HIT: # Far hit and bounce
-            ball.action = BALL_FAR_HIT
-            return (ball.reference_coordinate[0], int(player.reference_coordinate[1] + player.original_bounding_box.width_height_ratio * self.pixel_to_meter_ratio))
-        elif hit_bounce_pattern == BALL_NEAR_BOUNCE: # Near bounce and hit
-            ball.action = BALL_NEAR_BOUNCE
-            return ball.reference_coordinate
-        elif hit_bounce_pattern == BALL_NEAR_HIT: # Near hit and bounce
-            ball.action = BALL_NEAR_HIT
-            return (ball.reference_coordinate[0], int(player.reference_coordinate[1] - player.original_bounding_box.width_height_ratio * self.pixel_to_meter_ratio))
-        else: # Far bounce and hit
-            ball.action = BALL_FAR_BOUNCE
-            return ball.reference_coordinate
+        hitting_player_box = self._move_player_box_down(hitting_player.original_bounding_box)
+        hitting_ball_box = hitting_ball.original_bounding_box
+        hitting_ball_player_ratio = (hitting_player_box.y2 - hitting_ball_box.y2) / (hitting_player_box.y2 - hitting_player_box.y1)
+        ball_hit_height = round(self._get_player_height(hitting_player_box) * hitting_ball_player_ratio, 2)
+        ball_heights, vertical_velocities = self._compute_vertical_flight_path(frame_count, fps, ball_hit_height, 0.0)
+        net_clearance = self._replace_ball_heights_and_vertical_velocities(hits_and_bounces[hit_bounce_index], ball_heights, vertical_velocities)
+        hitting_player.net_clearance = net_clearance
 
-    def _get_end_coordinate(self, hit_bounce_index: int, player: ReferencePlayer, ball: ReferenceBall) -> Tuple[int, int]:
-        hit_bounce_pattern = hit_bounce_index % 4
-        if hit_bounce_pattern == BALL_FAR_HIT: # Far hit and bounce
-            ball.action = BALL_NEAR_BOUNCE
-            return ball.reference_coordinate
-        elif hit_bounce_pattern == BALL_NEAR_BOUNCE: # Near bounce and hit
-            ball.action = BALL_NEAR_HIT
-            return (ball.reference_coordinate[0], int(player.reference_coordinate[1] - 0.5 * self.pixel_to_meter_ratio))
-        elif hit_bounce_pattern == BALL_NEAR_HIT: # Near hit and bounce
-            ball.action = BALL_FAR_BOUNCE
-            return ball.reference_coordinate
-        else: # Far bounce and hit
-            ball.action = BALL_FAR_HIT
-            return (ball.reference_coordinate[0], int(player.reference_coordinate[1] + 0.5 * self.pixel_to_meter_ratio))
+    def _computer_near_bounce_near_hit(self, hits_and_bounces: List[int], hit_bounce_index: int, frame_count: int, fps: int) -> None:
+        hitting_player = self.reference_frames[hits_and_bounces[hit_bounce_index + 1]].get_near_player()
+        hitting_player.action = PLAYER_HIT
+        bouncing_ball = self.reference_frames[hits_and_bounces[hit_bounce_index]].ball
+        bouncing_ball.action = BALL_NEAR_BOUNCE
+        start_coordinate = bouncing_ball.reference_coordinate
+        hitting_ball = self.reference_frames[hits_and_bounces[hit_bounce_index + 1]].ball
+        hitting_ball.action = BALL_NEAR_HIT
+        end_coordinate = (hitting_ball.reference_coordinate[0], int(hitting_player.reference_coordinate[1] - 0.5 * self.pixel_to_meter_ratio))
+        calculated_coordinates, calculated_horizontal_velocities = self._compute_horizontal_flight_path(start_coordinate, end_coordinate, frame_count, fps)
+        self._replace_ball_coordinates_and_horozontal_velocity(hits_and_bounces[hit_bounce_index], calculated_coordinates, calculated_horizontal_velocities)
+
+        hitting_player_box = self._move_player_box_up(hitting_player.original_bounding_box)
+        hitting_ball_box = hitting_ball.original_bounding_box
+        hitting_ball_player_ratio = (hitting_player_box.y2 - hitting_ball_box.y2) / (hitting_player_box.y2 - hitting_player_box.y1)
+        ball_bounce_height = round(self._get_player_height(hitting_player_box) * hitting_ball_player_ratio, 2)
+        ball_heights, vertical_velocities = self._compute_vertical_flight_path(frame_count, fps, 0, ball_bounce_height)
+        net_clearance = self._replace_ball_heights_and_vertical_velocities(hits_and_bounces[hit_bounce_index], ball_heights, vertical_velocities)
+        hitting_player.net_clearance = net_clearance
+
+    def _computer_near_hit_far_bounce(self, hits_and_bounces: List[int], hit_bounce_index: int, frame_count: int, fps: int) -> None:
+        hitting_player = self.reference_frames[hits_and_bounces[hit_bounce_index]].get_near_player()
+        hitting_player.action = PLAYER_HIT
+        hitting_ball = self.reference_frames[hits_and_bounces[hit_bounce_index]].ball
+        hitting_ball.action = BALL_NEAR_HIT
+        start_coordinate = (hitting_ball.reference_coordinate[0], int(hitting_player.reference_coordinate[1] - hitting_player.original_bounding_box.width_height_ratio * self.pixel_to_meter_ratio))
+        bouncing_ball = self.reference_frames[hits_and_bounces[hit_bounce_index + 1]].ball
+        bouncing_ball.action = BALL_FAR_BOUNCE
+        end_coordinate = bouncing_ball.reference_coordinate
+        calculated_coordinates, calculated_horizontal_velocities = self._compute_horizontal_flight_path(start_coordinate, end_coordinate, frame_count, fps)
+        self._replace_ball_coordinates_and_horozontal_velocity(hits_and_bounces[hit_bounce_index], calculated_coordinates, calculated_horizontal_velocities)
+
+        player_box = self._move_player_box_up(hitting_player.original_bounding_box)
+        ball_box = hitting_ball.original_bounding_box
+        ball_player_ratio = (player_box.y2 - ball_box.y2) / (player_box.y2 - player_box.y1)
+        ball_hit_height = round(self._get_player_height(player_box) * ball_player_ratio, 2)
+        ball_heights, vertical_velocities = self._compute_vertical_flight_path(frame_count, fps, ball_hit_height, 0.0)
+        net_clearance = self._replace_ball_heights_and_vertical_velocities(hits_and_bounces[hit_bounce_index], ball_heights, vertical_velocities)
+        hitting_player.net_clearance = net_clearance
+
+    def _computer_far_bounce_far_hit(self, hits_and_bounces: List[int], hit_bounce_index: int, frame_count: int, fps: int) -> None:
+        hitting_player = self.reference_frames[hits_and_bounces[hit_bounce_index + 1]].get_far_player()
+        hitting_player.action = PLAYER_HIT
+        bouncing_ball = self.reference_frames[hits_and_bounces[hit_bounce_index]].ball
+        bouncing_ball.action = BALL_FAR_BOUNCE
+        start_coordinate = bouncing_ball.reference_coordinate
+        hitting_ball = self.reference_frames[hits_and_bounces[hit_bounce_index + 1]].ball
+        hitting_ball.action = BALL_FAR_HIT
+        end_coordinate = (hitting_ball.reference_coordinate[0], int(hitting_player.reference_coordinate[1] + 0.5 * self.pixel_to_meter_ratio))
+        calculated_coordinates, calculated_horizontal_velocities = self._compute_horizontal_flight_path(start_coordinate, end_coordinate, frame_count, fps)
+        self._replace_ball_coordinates_and_horozontal_velocity(hits_and_bounces[hit_bounce_index], calculated_coordinates, calculated_horizontal_velocities)
+
+        hitting_player_box = self._move_player_box_down(hitting_player.original_bounding_box)
+        hitting_ball_box = hitting_ball.original_bounding_box
+        hitting_ball_player_ratio = (hitting_player_box.y2 - hitting_ball_box.y2) / (hitting_player_box.y2 - hitting_player_box.y1)
+        ball_bounce_height = round(self._get_player_height(hitting_player_box) * hitting_ball_player_ratio, 2)
+        ball_heights, vertical_velocities = self._compute_vertical_flight_path(frame_count, fps, 0, ball_bounce_height)
+        net_clearance = self._replace_ball_heights_and_vertical_velocities(hits_and_bounces[hit_bounce_index], ball_heights, vertical_velocities)
+        hitting_player.net_clearance = net_clearance
 
     def _compute_horizontal_flight_path(self, 
                                        start_coordinate: Tuple[int, int], 
@@ -442,34 +455,6 @@ class ReferenceCourt:
             frame_number = start_frame_number + j
             self.reference_frames[frame_number].ball.reference_coordinate = coordinate
             self.reference_frames[frame_number].ball.horizontal_velocity = calculated_horizontal_velocities[j]
-
-    def _get_ball_hit_height(self,
-                             hit_bounce_index: int,
-                             player: ReferencePlayer,
-                             ball: ReferenceBall) -> float:
-        hit_bounce_pattern = hit_bounce_index % 4
-        if hit_bounce_pattern == BALL_FAR_HIT:  # Far hit and bounce
-            player_box = self._move_player_box_down(player.original_bounding_box)
-            # player_box = player.original_bounding_box
-            print(f'Player box ratio: {player_box.width_height_ratio}')
-            ball_box = ball.original_bounding_box
-            ball_player_ratio = (player_box.y2 - ball_box.y2) / (player_box.y2 - player_box.y1)
-            if ball_player_ratio < 0:
-                ball_player_ratio = 0.01
-            return round(self._get_player_height(player_box) * ball_player_ratio, 2)
-        elif hit_bounce_pattern == BALL_NEAR_BOUNCE:  # Near bounce and hit
-            return 0
-        elif hit_bounce_pattern == BALL_NEAR_HIT:  # Near hit and bounce
-            player_box = self._move_player_box_up(player.original_bounding_box)
-            # player_box = player.original_bounding_box
-            print(f'Player box ratio: {player_box.width_height_ratio}')
-            ball_box = ball.original_bounding_box
-            ball_player_ratio = (player_box.y2 - ball_box.y2) / (player_box.y2 - player_box.y1)
-            if ball_player_ratio < 0:
-                ball_player_ratio = 0.01
-            return round(self._get_player_height(player_box) * ball_player_ratio, 2)
-        else:  # Far bounce and hit
-            return 0
 
     def _move_player_box_down(self, player_box: BoundingBox) -> BoundingBox:
         reference_top_left = self.get_reference_coordinate((player_box.x1, player_box.y1))
@@ -513,7 +498,7 @@ class ReferenceCourt:
         print(f'Player height: {player_height_meters} m')
         return player_height_meters
 
-    def _compute_vertical_flight_path(self, frame_count: int, fps: float, ball_hit_height: float) -> Tuple[List[float], List[float]]:
+    def _compute_vertical_flight_path(self, frame_count: int, fps: float, initial_height: float, final_height: float) -> Tuple[List[float], List[float]]:
         """
         Compute the vertical flight path of the ball.
         
@@ -526,10 +511,10 @@ class ReferenceCourt:
             Tuple of vertical distances and vertical velocities
         """
         time_seconds = frame_count / fps
-        initial_vertical_velocity = round(get_initial_vertical_velocity(ball_hit_height, time_seconds), 2)
+        initial_vertical_velocity = round(get_initial_vertical_velocity(initial_height, final_height, time_seconds), 2)
         vertical_distances, vertical_velocities = get_vertical_distances_and_velocities(
             initial_vertical_velocity, 
-            ball_hit_height, 
+            initial_height, 
             time_seconds / frame_count)
         
         return vertical_distances, vertical_velocities
@@ -545,6 +530,7 @@ class ReferenceCourt:
             balls.append(ball)
             ball.height_meters = height
             ball.vertical_velocity = vertical_velocities[j]
+            # print(f'Frame number: {frame_number}, Ball height: {ball.height_meters}, Velocity: {ball.vertical_velocity}')
 
         # Calculate net clearance
         net_clearance = 0
@@ -610,9 +596,20 @@ class ReferenceCourt:
             frame = self._draw_court(frame)
             
             # Draw players and ball
-            self._draw_player_coordinates(frame, self.reference_frames[frame_number].player_1, 10, color=(0, 0, 255))  # Near player
-            self._draw_player_coordinates(frame, self.reference_frames[frame_number].player_2, 10, color=(255, 0, 0))  # Far player
-            self._draw_ball_coordinates(frame, self.reference_frames[frame_number].ball, 5, color=(0, 255, 0))         # Ball
+            self._draw_player_coordinates(frame, 
+                                          self.reference_frames[frame_number].far_player_id, 
+                                          self.reference_frames[frame_number].player_1, 
+                                          10, 
+                                          color=(0, 0, 255))  # Near player
+            self._draw_player_coordinates(frame, 
+                                          self.reference_frames[frame_number].far_player_id, 
+                                          self.reference_frames[frame_number].player_2, 
+                                          10, 
+                                          color=(255, 0, 0))  # Far player
+            self._draw_ball_coordinates(frame, 
+                                        self.reference_frames[frame_number].ball, 
+                                        5, 
+                                        color=(0, 255, 0))    # Ball
             
             output_frames.append(frame)
             
@@ -620,13 +617,17 @@ class ReferenceCourt:
 
     def _draw_player_coordinates(self,
                                 frame: np.ndarray,
+                                far_player_id: int,
                                 player: ReferencePlayer,
                                 size: int,
                                 color: Tuple[int, int, int]) -> None:
         x = int(player.reference_coordinate[0] + self.canvas_x1)
         y = int(player.reference_coordinate[1] + self.canvas_y1)
         cv2.circle(frame, (x, y), size, color, -1)
-        cv2.putText(frame, f"{player.player_id}", (x + 10, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        if player.player_id == far_player_id:
+            cv2.putText(frame, f"{player.player_id}", (self.canvas_x1 + 10, self.canvas_y1 + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
+        else:
+            cv2.putText(frame, f"{player.player_id}", (self.canvas_x1 + 10, self.canvas_y2 - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
 
     def _draw_ball_coordinates(self, 
                         frame: np.ndarray, 
@@ -646,15 +647,14 @@ class ReferenceCourt:
         y = int(ball.reference_coordinate[1] + self.canvas_y1)
         cv2.circle(frame, (x, y), size, color, -1)
 
-        if ball.height_meters != 0:
-            cv2.putText(
-                frame, f"h: {ball.height_meters}", (x + 10, y - 10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2
-            )
-            cv2.putText(
-                frame, f"v: {get_hypotenuse(ball.horizontal_velocity, ball.vertical_velocity)}", (x + 10, y + 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2
-            )
+        cv2.putText(
+            frame, f"h: {ball.height_meters}", (x + 10, y - 5),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
+        )
+        cv2.putText(
+            frame, f"v: {get_hypotenuse(ball.horizontal_velocity, ball.vertical_velocity)}", (x + 10, y + 15),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
+        )
 
     def _draw_court(self, frame: np.ndarray) -> np.ndarray:
         """

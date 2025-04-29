@@ -1,116 +1,31 @@
-Converting player and ball positions to reference court coordinates...
-Processing hit and bounce: 28 - 37
-Getting ball hit height: 28
-Ball hit height: 0 m
-Processing hit and bounce: 107 - 117
-Getting ball hit height: 107
-Ball hit height: 0 m
-Processing hit and bounce: 117 - 137
-Getting ball hit height: 117
-Player height: 1.73 m
-Ball hit height: 0.69 m
-Ball is on the net: 1.05 m
-Processing hit and bounce: 137 - 144
-Getting ball hit height: 137
-Ball hit height: 0 m
-Processing hit and bounce: 144 - 165
-Getting ball hit height: 144
-Player height: 1.83 m
-Ball hit height: 0.77 m
-Ball is on the net: 0.98 m
-Processing hit and bounce: 165 - 174
-Getting ball hit height: 165
-Ball hit height: 0 m
-Processing hit and bounce: 174 - 195
-Getting ball hit height: 174
-Player height: 1.68 m
-Ball hit height: 0.82 m
-Ball is on the net: 1.19 m
-Processing hit and bounce: 195 - 204
-Getting ball hit height: 195
-Ball hit height: 0 m
-Processing hit and bounce: 204 - 223
-Getting ball hit height: 204
-Player height: 1.86 m
-Ball hit height: 0.89 m
-Ball is on the net: 0.9 m
-Processing hit and bounce: 223 - 235
-Getting ball hit height: 223
-Ball hit height: 0 m
-Processing hit and bounce: 235 - 255
-Getting ball hit height: 235
-Player height: 1.72 m
-Ball hit height: 0.99 m
-Ball is on the net: 1.16 m
-Processing hit and bounce: 255 - 264
-Getting ball hit height: 255
-Ball hit height: 0 m
-Processing hit and bounce: 264 - 284
-Getting ball hit height: 264
-Player height: 1.78 m
-Ball hit height: 0.87 m
-Ball is on the net: 0.98 m
-Processing hit and bounce: 284 - 294
-Getting ball hit height: 284
-Ball hit height: 0 m
-Processing hit and bounce: 294 - 318
-Getting ball hit height: 294
-Player height: 1.7 m
-Ball hit height: 0.84 m
-Ball is on the net: 1.4 m
-Processing hit and bounce: 318 - 327
-Getting ball hit height: 318
-Ball hit height: 0 m
-Processing hit and bounce: 327 - 349
-Getting ball hit height: 327
-Player height: 1.76 m
-Ball hit height: 0.84 m
-Ball is on the net: 0.96 m
-Processing hit and bounce: 349 - 363
-Getting ball hit height: 349
-Ball hit height: 0 m
-Processing hit and bounce: 363 - 391
-Getting ball hit height: 363
-Player height: 1.54 m
-Ball hit height: 0.67 m
-Ball is on the net: 1.63 m
-Processing hit and bounce: 391 - 414
-Getting ball hit height: 391
-Ball hit height: 0 m
-Processing hit and bounce: 414 - 432
-Getting ball hit height: 414
-Player height: 1.79 m
-Ball hit height: 0.02 m
-Ball is on the net: 0.56 m
-Processing hit and bounce: 432 - 444
-Getting ball hit height: 432
-Ball hit height: 0 m
-Processing hit and bounce: 444 - 474
-Getting ball hit height: 444
-Player height: 1.68 m
-Ball hit height: 0.77 m
-Ball is on the net: 2.02 m
-Processing hit and bounce: 474 - 484
-Getting ball hit height: 474
-Ball hit height: 0 m
-Processing hit and bounce: 484 - 503
-Getting ball hit height: 484
-Player height: 1.61 m
-Ball hit height: 0.52 m
-Ball is on the net: 0.84 m
-Processing hit and bounce: 503 - 516
-Getting ball hit height: 503
-Ball hit height: 0 m
-Processing hit and bounce: 516 - 542
-Getting ball hit height: 516
-Player height: 1.4 m
-Ball hit height: 0.71 m
-Ball is on the net: 1.49 m
-Processing hit and bounce: 542 - 551
-Getting ball hit height: 542
-Ball hit height: 0 m
-Processing hit and bounce: 551 - 570
-Getting ball hit height: 551
-Player height: 1.77 m
-Ball hit height: 0.83 m
-Ball is on the net: 0.99 m
+def simulate_to_height(initial_velocity, mass, rho, cd, area, target_height, dt):
+    """
+    Simulates the upward motion of an object with quadratic air drag until it reaches a target height.
+
+    Args:
+        initial_velocity (float): Initial upward velocity (m/s).
+        mass (float): Mass of the object (kg).
+        rho (float): Air density (kg/m^3).
+        cd (float): Drag coefficient (dimensionless).
+        area (float): Cross-sectional area (m^2).
+        target_height (float): The height at which the time was measured (m).
+        dt (float): Time step for the simulation (s).
+
+    Returns:
+        float: Time taken to reach the target height (s), or None if it doesn't reach or simulation fails.
+    """
+    g = 9.81  # Acceleration due to gravity (m/s^2)
+    t = 0.0
+    y = 0.0
+    v = initial_velocity
+    while y < target_height and v >= 0: # Continue until target height is reached or velocity becomes negative
+        drag_force = 0.5 * rho * cd * area * v**2
+        acceleration = -g - (drag_force / mass)
+        v += acceleration * dt
+        y += v * dt
+        t += dt
+        if t > 1000: # Safety break
+            return None
+        if v < 0 and y < target_height: # Overshot and falling back
+            return None
+    return t

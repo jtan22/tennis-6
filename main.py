@@ -8,6 +8,9 @@ from tennis import (
     ReferenceCourt,
     PlayerStats)
 import cv2
+from tennis.utils import (
+    get_initial_vertical_velocity,
+)
 
 def main():
     input_video_path = 'input_videos/sample001.mp4'
@@ -76,6 +79,8 @@ def draw(input_frames, fps, player_tracker, ball_tracker, court_line_detector, r
     print('Saving output video...')
     save_video(output_frames, fps, 'output_videos/output_video.avi')
 
+
 if __name__ == "__main__":
+    # get_initial_vertical_velocity(0.0, 0.8, 0.2)
     main()
 
