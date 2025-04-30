@@ -14,7 +14,8 @@ from .utils import get_distance_between_points, \
     get_initial_horizontal_velocity, \
     get_horizontal_distance_by_time, \
     get_horizontal_velocity_by_time, \
-    get_initial_vertical_velocity, \
+    get_initial_vertical_velocity_hit, \
+    get_initial_vertical_velocity_bounce, \
     get_vertical_distances_and_velocities, \
     get_hypotenuse
 from .constants import BALL_FAR_BOUNCE, DOUBLES_LINE_WIDTH, DOUBLES_ALLEY_WIDTH, RUN_BACK_DEPTH, \
@@ -359,7 +360,7 @@ class ReferenceCourt:
         hitting_ball_box = hitting_ball.original_bounding_box
         hitting_ball_player_ratio = (hitting_player_box.y2 - hitting_ball_box.y2) / (hitting_player_box.y2 - hitting_player_box.y1)
         ball_hit_height = round(self._get_player_height(hitting_player_box) * hitting_ball_player_ratio, 2)
-        ball_heights, vertical_velocities = self._compute_vertical_flight_path(frame_count, fps, ball_hit_height, 0.0)
+        ball_heights, vertical_velocities = self._compute_vertical_flight_path_hit(frame_count, fps, ball_hit_height, 0.0)
         net_clearance = self._replace_ball_heights_and_vertical_velocities(hits_and_bounces[hit_bounce_index], ball_heights, vertical_velocities)
         hitting_player.net_clearance = net_clearance
 
@@ -379,7 +380,7 @@ class ReferenceCourt:
         hitting_ball_box = hitting_ball.original_bounding_box
         hitting_ball_player_ratio = (hitting_player_box.y2 - hitting_ball_box.y2) / (hitting_player_box.y2 - hitting_player_box.y1)
         ball_bounce_height = round(self._get_player_height(hitting_player_box) * hitting_ball_player_ratio, 2)
-        ball_heights, vertical_velocities = self._compute_vertical_flight_path(frame_count, fps, 0, ball_bounce_height)
+        ball_heights, vertical_velocities = self._compute_vertical_flight_path_bounce(frame_count, fps, 0, ball_bounce_height)
         net_clearance = self._replace_ball_heights_and_vertical_velocities(hits_and_bounces[hit_bounce_index], ball_heights, vertical_velocities)
         hitting_player.net_clearance = net_clearance
 
@@ -399,7 +400,7 @@ class ReferenceCourt:
         ball_box = hitting_ball.original_bounding_box
         ball_player_ratio = (player_box.y2 - ball_box.y2) / (player_box.y2 - player_box.y1)
         ball_hit_height = round(self._get_player_height(player_box) * ball_player_ratio, 2)
-        ball_heights, vertical_velocities = self._compute_vertical_flight_path(frame_count, fps, ball_hit_height, 0.0)
+        ball_heights, vertical_velocities = self._compute_vertical_flight_path_hit(frame_count, fps, ball_hit_height, 0.0)
         net_clearance = self._replace_ball_heights_and_vertical_velocities(hits_and_bounces[hit_bounce_index], ball_heights, vertical_velocities)
         hitting_player.net_clearance = net_clearance
 
@@ -419,7 +420,7 @@ class ReferenceCourt:
         hitting_ball_box = hitting_ball.original_bounding_box
         hitting_ball_player_ratio = (hitting_player_box.y2 - hitting_ball_box.y2) / (hitting_player_box.y2 - hitting_player_box.y1)
         ball_bounce_height = round(self._get_player_height(hitting_player_box) * hitting_ball_player_ratio, 2)
-        ball_heights, vertical_velocities = self._compute_vertical_flight_path(frame_count, fps, 0, ball_bounce_height)
+        ball_heights, vertical_velocities = self._compute_vertical_flight_path_bounce(frame_count, fps, 0, ball_bounce_height)
         net_clearance = self._replace_ball_heights_and_vertical_velocities(hits_and_bounces[hit_bounce_index], ball_heights, vertical_velocities)
         hitting_player.net_clearance = net_clearance
 
@@ -498,7 +499,7 @@ class ReferenceCourt:
         print(f'Player height: {player_height_meters} m')
         return player_height_meters
 
-    def _compute_vertical_flight_path(self, frame_count: int, fps: float, initial_height: float, final_height: float) -> Tuple[List[float], List[float]]:
+    def _compute_vertical_flight_path_hit(self, frame_count: int, fps: float, initial_height: float, final_height: float) -> Tuple[List[float], List[float]]:
         """
         Compute the vertical flight path of the ball.
         
@@ -511,7 +512,28 @@ class ReferenceCourt:
             Tuple of vertical distances and vertical velocities
         """
         time_seconds = frame_count / fps
-        initial_vertical_velocity = round(get_initial_vertical_velocity(initial_height, final_height, time_seconds), 2)
+        initial_vertical_velocity = round(get_initial_vertical_velocity_hit(initial_height, final_height, time_seconds), 2)
+        vertical_distances, vertical_velocities = get_vertical_distances_and_velocities(
+            initial_vertical_velocity, 
+            initial_height, 
+            time_seconds / frame_count)
+        
+        return vertical_distances, vertical_velocities
+
+    def _compute_vertical_flight_path_bounce(self, frame_count: int, fps: float, initial_height: float, final_height: float) -> Tuple[List[float], List[float]]:
+        """
+        Compute the vertical flight path of the ball.
+        
+        Args:
+            frame_number: Frame number of the hit
+            fps: Frames per second of the video
+            ball_hit_height: Height of the ball at the hit point
+            
+        Returns:
+            Tuple of vertical distances and vertical velocities
+        """
+        time_seconds = frame_count / fps
+        initial_vertical_velocity = round(get_initial_vertical_velocity_bounce(initial_height, final_height, time_seconds), 2)
         vertical_distances, vertical_velocities = get_vertical_distances_and_velocities(
             initial_vertical_velocity, 
             initial_height, 
