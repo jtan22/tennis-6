@@ -8,10 +8,6 @@ from tennis import (
     ReferenceCourt,
     PlayerStats)
 import cv2
-from tennis.utils import (
-    get_initial_vertical_velocity_hit,
-    get_initial_vertical_velocity_bounce,
-)
 
 def main():
     input_video_path = 'input_videos/sample001.mp4'
@@ -25,6 +21,7 @@ def main():
     print('Processing ball tracker...')
     ball_tracker = BallTracker(model_path='models/ball/train-5l6u-10-64/weights/last-378-213.pt')
     ball_tracker.detect_ball_positions_all_frames(input_frames, read_from_stub=True, stub_path='tracker_stubs/ball_detections.pkl')
+    
     ball_tracker.synthesize_ball_positions()
 
     ball_analyser = BallAnalyser(len(input_frames))

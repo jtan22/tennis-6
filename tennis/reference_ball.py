@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Tuple, Optional
+from typing import Tuple
 
 from tennis.bounding_box import BoundingBox
 

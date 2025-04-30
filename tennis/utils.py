@@ -1,10 +1,18 @@
 import cv2
 from shapely.geometry import Point, LineString
 import math
+from typing import List, Tuple
 from collections import deque
-from .constants import GRAVITY, BALL_TERMINAL_VELOCITY_SQUARED, DEFAULT_VERTICAL_VELOCITY, \
-    AIR_DENSITY, BALL_DRAG_COEFFICIENT, BALL_CROSS_SECTION, BALL_MASS, BALL_DRAG_FACTOR, \
-    DEFAULT_PLAYER_HEIGHT, PLAYER_STANDING_WIDTH_HEIGHT_RATIO
+from .constants import (
+    GRAVITY, 
+    BALL_TERMINAL_VELOCITY_SQUARED, 
+    DEFAULT_VERTICAL_VELOCITY,
+    AIR_DENSITY, 
+    BALL_DRAG_COEFFICIENT, 
+    BALL_CROSS_SECTION, 
+    BALL_MASS,
+    BALL_DRAG_FACTOR,
+)
 
 def read_video(video_path):
     # Read a video file and return its frames as a list of numpy arrays
@@ -28,24 +36,24 @@ def save_video(video_frames, fps, video_path):
         out.write(frame)
     out.release()
 
-def get_bounding_box_center_point(bounding_box):
+def get_bounding_box_center_point(bounding_box: Tuple[int, int, int, int]) -> Tuple[int, int]:
     x1, y1, x2, y2 = bounding_box
     center_x = (x1 + x2) / 2
     center_y = (y1 + y2) / 2
     return (int(center_x), int(center_y))
 
-def get_bottom_line_center_point(bounding_box):
+def get_bottom_line_center_point(bounding_box: Tuple[int, int, int, int]) -> Tuple[int, int]:
     x1, y1, x2, y2 = bounding_box
     center_x = (x1 + x2) / 2
     return (int(center_x), int(y2))
 
-def get_distance_between_points(point1, point2):
+def get_distance_between_points(point1: Tuple[int, int], point2: Tuple[int, int]) -> float:
     x1, y1 = point1
     x2, y2 = point2
     distance = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
     return distance
 
-def get_distance_between_point_and_line(point, line_start, line_end):
+def get_distance_between_point_and_line(point: Tuple[int, int], line_start: Tuple[int, int], line_end: Tuple[int, int]) -> float:
     point_sh = Point(point[0], point[1])
     line_sh = LineString([line_start, line_end])
     distance_infinite_sh = point_sh.distance(line_sh)
@@ -53,20 +61,20 @@ def get_distance_between_point_and_line(point, line_start, line_end):
     return distance_infinite_sh
 
 # U0 = (Vt^2)*(e^(g*x/Vt^2) - 1)/(g*t)
-def get_initial_horizontal_velocity(distance, time):
+def get_initial_horizontal_velocity(distance: float, time: float) -> float:
     return BALL_TERMINAL_VELOCITY_SQUARED * (math.e ** (distance * GRAVITY / BALL_TERMINAL_VELOCITY_SQUARED) - 1) / (GRAVITY * time)
 
 # x = (Vt^2/g)*ln((Vt^2+g*U0*t)/Vt^2) = (Vt^2/g)*ln(1+g*U0*t/Vt^2)
-def get_horizontal_distance_by_time(initial_velocity, time):
+def get_horizontal_distance_by_time(initial_velocity: float, time: float) -> float:
     return (BALL_TERMINAL_VELOCITY_SQUARED / GRAVITY) * math.log((BALL_TERMINAL_VELOCITY_SQUARED + (GRAVITY * initial_velocity * time)) / BALL_TERMINAL_VELOCITY_SQUARED)
 
 # u = (Vt^2*U0)/(Vt^2+g*U0*t)
-def get_horizontal_velocity_by_time(initial_velocity, time):
+def get_horizontal_velocity_by_time(initial_velocity: float, time: float) -> float:
     return (BALL_TERMINAL_VELOCITY_SQUARED * initial_velocity) / (BALL_TERMINAL_VELOCITY_SQUARED + GRAVITY * initial_velocity * time)
 
 # Upward acceleration:   -g - (rho * Cd * A * v**2) / (2 * m)
 # Downward acceleration: -g + (rho * Cd * A * v**2) / (2 * m) 
-def simulate_vertical_motion_hit(v0, h_initial, rho, Cd, A, m, g):
+def simulate_vertical_motion_hit(v0: float, h_initial: float, rho: float, Cd: float, A: float, m: float, g: float) -> Tuple[float, float]:
     dt = 0.001  # Time step
     t = 0
     y = h_initial
@@ -89,7 +97,7 @@ def simulate_vertical_motion_hit(v0, h_initial, rho, Cd, A, m, g):
     
     return t, y
 
-def get_initial_vertical_velocity_hit(initial_height, total_seconds):
+def get_initial_vertical_velocity_hit(initial_height: float, total_seconds: float) -> float:
     print(f'Initial height: {initial_height}, Total seconds: {total_seconds}')
     # Initial guess for v0
     v0_guess = DEFAULT_VERTICAL_VELOCITY
@@ -131,7 +139,7 @@ def get_initial_vertical_velocity_hit(initial_height, total_seconds):
 
 # Upward acceleration:   -g - (rho * Cd * A * v**2) / (2 * m)
 # Downward acceleration: -g + (rho * Cd * A * v**2) / (2 * m) 
-def simulate_vertical_motion_bounce(v0, total_seconds, rho, Cd, A, m, g):
+def simulate_vertical_motion_bounce(v0: float, total_seconds: float, rho: float, Cd: float, A: float, m: float, g: float) -> float:
     dt = 0.001  # Time step
     t = 0
     y = 0
@@ -151,7 +159,7 @@ def simulate_vertical_motion_bounce(v0, total_seconds, rho, Cd, A, m, g):
     
     return y
 
-def get_initial_vertical_velocity_bounce(final_height, total_seconds):
+def get_initial_vertical_velocity_bounce(final_height: float, total_seconds: float) -> float:
     print(f'Final height: {final_height}, Total seconds: {total_seconds}')
     # Initial guess for v0
     v0_guess = DEFAULT_VERTICAL_VELOCITY
@@ -191,7 +199,7 @@ def get_initial_vertical_velocity_bounce(final_height, total_seconds):
     print(f'Final v0_guess: {v0_guess}')
     return v0_guess
 
-def get_vertical_distances_and_velocities(v0, h_initial, dt, t_max=5.0):
+def get_vertical_distances_and_velocities(v0: float, h_initial: float, dt: float, t_max: float=5.0) -> Tuple[List[float], List[float]]:
     """Simulates the trajectory of the object with air resistance."""
     t = 0
     y = h_initial
@@ -218,8 +226,5 @@ def get_vertical_distances_and_velocities(v0, h_initial, dt, t_max=5.0):
             
     return distances, velocities
 
-def get_hypotenuse(a, b):
+def get_hypotenuse(a: float, b: float) -> float:
     return round((a ** 2 + b **2) ** 0.5, 2)
-
-def get_player_height(player_ratio):
-    return DEFAULT_PLAYER_HEIGHT * PLAYER_STANDING_WIDTH_HEIGHT_RATIO ** 0.1 / player_ratio ** 0.1

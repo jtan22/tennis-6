@@ -10,18 +10,34 @@ from tennis.reference_frame import ReferenceFrame
 from tennis.reference_player import ReferencePlayer
 from tennis.reference_ball import ReferenceBall
 
-from .utils import get_distance_between_points, \
-    get_initial_horizontal_velocity, \
-    get_horizontal_distance_by_time, \
-    get_horizontal_velocity_by_time, \
-    get_initial_vertical_velocity_hit, \
-    get_initial_vertical_velocity_bounce, \
-    get_vertical_distances_and_velocities, \
-    get_hypotenuse
-from .constants import BALL_FAR_BOUNCE, DOUBLES_LINE_WIDTH, DOUBLES_ALLEY_WIDTH, RUN_BACK_DEPTH, \
-    SIDE_RUN_WIDTH, HALF_COURT_DEPTH, NO_MANS_LAND_DEPTH, REFERENCE_COURT_MARGIN_X, \
-    REFERENCE_COURT_MARGIN_Y, CENTER_LINE_DEPTH, BALL_FAR_HIT, BALL_NEAR_BOUNCE, \
-    BALL_NEAR_HIT, BALL_IN_FLIGHT, PLAYER_RUN, PLAYER_HIT
+from .utils import (
+    get_distance_between_points,
+    get_initial_horizontal_velocity,
+    get_horizontal_distance_by_time,
+    get_horizontal_velocity_by_time,
+    get_initial_vertical_velocity_hit,
+    get_initial_vertical_velocity_bounce,
+    get_vertical_distances_and_velocities,
+    get_hypotenuse,
+)
+from .constants import (
+    BALL_FAR_BOUNCE, 
+    DOUBLES_LINE_WIDTH, 
+    DOUBLES_ALLEY_WIDTH, 
+    RUN_BACK_DEPTH,
+    SIDE_RUN_WIDTH, 
+    HALF_COURT_DEPTH, 
+    NO_MANS_LAND_DEPTH, 
+    REFERENCE_COURT_MARGIN_X,
+    REFERENCE_COURT_MARGIN_Y, 
+    CENTER_LINE_DEPTH, 
+    BALL_FAR_HIT, 
+    BALL_NEAR_BOUNCE,
+    BALL_NEAR_HIT, 
+    BALL_IN_FLIGHT, 
+    PLAYER_RUN, 
+    PLAYER_HIT,
+)
 
 class ReferenceCourt:
     """

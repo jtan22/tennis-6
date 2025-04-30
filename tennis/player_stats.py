@@ -1,9 +1,7 @@
 import pandas as pd
 import cv2
 from copy import deepcopy
-from typing import List, Dict, Tuple, Optional, Any
-
-from sympy import per
+from typing import List
 
 from tennis.reference_frame import ReferenceFrame
 from .constants import PLAYER_HIT, STATS_MARGIN_X, STATS_MARGIN_Y, DOUBLES_LINE_WIDTH, SIDE_RUN_WIDTH

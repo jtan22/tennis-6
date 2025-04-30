@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List, Tuple
 
 from tennis.reference_ball import ReferenceBall
 from tennis.reference_player import ReferencePlayer
