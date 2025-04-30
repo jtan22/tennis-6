@@ -512,7 +512,7 @@ class ReferenceCourt:
             Tuple of vertical distances and vertical velocities
         """
         time_seconds = frame_count / fps
-        initial_vertical_velocity = round(get_initial_vertical_velocity_hit(initial_height, final_height, time_seconds), 2)
+        initial_vertical_velocity = round(get_initial_vertical_velocity_hit(initial_height, time_seconds), 2)
         vertical_distances, vertical_velocities = get_vertical_distances_and_velocities(
             initial_vertical_velocity, 
             initial_height, 
@@ -533,7 +533,7 @@ class ReferenceCourt:
             Tuple of vertical distances and vertical velocities
         """
         time_seconds = frame_count / fps
-        initial_vertical_velocity = round(get_initial_vertical_velocity_bounce(initial_height, final_height, time_seconds), 2)
+        initial_vertical_velocity = round(get_initial_vertical_velocity_bounce(final_height, time_seconds), 2)
         vertical_distances, vertical_velocities = get_vertical_distances_and_velocities(
             initial_vertical_velocity, 
             initial_height, 

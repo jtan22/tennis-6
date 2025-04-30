@@ -9,6 +9,7 @@ from tennis import (
     PlayerStats)
 import cv2
 from tennis.utils import (
+    get_initial_vertical_velocity_hit,
     get_initial_vertical_velocity_bounce,
 )
 
@@ -81,6 +82,5 @@ def draw(input_frames, fps, player_tracker, ball_tracker, court_line_detector, r
 
 
 if __name__ == "__main__":
-    # get_initial_vertical_velocity_bounce(0.0, 0.8, 0.28)
     main()
 
