@@ -1,3 +1,4 @@
+from csv import Error
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -13,205 +14,92 @@ from .utils import get_distance_between_point_and_line
 from .bounding_box import BoundingBox
 
 class BallTracker:
-    """
-    Class to track a ball in video frames using YOLOv8 model.
     
-    This class detects and tracks balls across video frames, handling multiple detections,
-    interpolating missing positions, and filtering outliers.
-    """
-    
-    def __init__(self, model_path: Union[str, Path], confidence_threshold: float = 0.15):
-        """
-        Initialize the BallTracker with the specified model.
+    def __init__(self):
+        self.stub_path = 'tracker_stubs/ball_detections.pkl'
+        self.ball_positions_path = 'analysis/ball_positions.csv'
         
-        Args:
-            model_path: Path to the YOLOv8 model
-            confidence_threshold: Detection confidence threshold (0-1)
-        """
-        self.model = YOLO(model_path)
-        self.confidence_threshold = confidence_threshold
-        
-        # Select appropriate device
-        self.device = (
-            'mps' if torch.backends.mps.is_available() else
-            'cuda' if torch.cuda.is_available() else
-            'cpu'
-        )
-        self.model.to(self.device)
-        
-        # Initialize tracking data structures
-        self.multiple_ball_positions: List[Dict[int, Tuple[int, int, int, int]]] = []
-        self.single_ball_positions: List[Dict[int, Tuple[int, int, int, int]]] = []
-        self.clean_ball_positions: List[Dict[int, Tuple[int, int, int, int]]] = []
-        self.complete_ball_positions: List[Dict[int, Tuple[int, int, int, int]]] = []
-        self.frame_count: int = 0
-        self.df: pd.DataFrame = pd.DataFrame()
-        
-        print(f"BallTracker initialized using {self.device} device")
+    def detect_ball_positions(self, frames: List[np.ndarray], model_path) -> None:
+        model = YOLO(model_path)
+        model.to('mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu')
 
-    def detect_ball_positions_all_frames(self, 
-                                        frames: List[np.ndarray],
-                                        read_from_stub: bool = False,
-                                        stub_path: Optional[Union[str, Path]] = None) -> None:
-        """
-        Detect ball positions in all frames or load from a saved stub file.
-        
-        Args:
-            frames: List of video frames as numpy arrays
-            read_from_stub: Whether to read from a saved stub file
-            stub_path: Path to the stub file
-        """
-        if read_from_stub and stub_path is not None:
-            if self._load_from_stub(stub_path):
-                return
-                
-        self._detect_frames(frames)
-        
-        if stub_path is not None:
-            self._save_to_stub(stub_path)
-
-    def _load_from_stub(self, stub_path: Union[str, Path]) -> bool:
-        """
-        Load ball positions from a stub file.
-        
-        Args:
-            stub_path: Path to the stub file
-            
-        Returns:
-            True if successfully loaded, False otherwise
-        """
-        try:
-            with open(stub_path, 'rb') as f:
-                self.multiple_ball_positions = pickle.load(f)
-            self.frame_count = len(self.multiple_ball_positions)
-            print(f'Loaded {self.frame_count} frames of ball positions from stub')
-            return True
-        except (FileNotFoundError, pickle.PickleError, EOFError) as e:
-            print(f"Error loading stub file: {e}")
-            return False
-
-    def _save_to_stub(self, stub_path: Union[str, Path]) -> bool:
-        """
-        Save ball positions to a stub file.
-        
-        Args:
-            stub_path: Path to save the stub file
-            
-        Returns:
-            True if successfully saved, False otherwise
-        """
-        try:
-            # Ensure directory exists
-            Path(stub_path).parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(stub_path, 'wb') as f:
-                pickle.dump(self.multiple_ball_positions, f)
-            print(f'Saved {self.frame_count} frames of ball positions to stub')
-            return True
-        except IOError as e:
-            print(f"Error saving stub file: {e}")
-            return False
-
-    def _detect_frames(self, frames: List[np.ndarray]) -> None:
-        """
-        Process all frames to detect ball positions.
-        
-        Args:
-            frames: List of video frames as numpy arrays
-        """
-        self.multiple_ball_positions = []
-        
+        ball_positions = []
         for i, frame in enumerate(frames):
-            positions = self._detect_ball_positions_per_frame(frame)
-            self.multiple_ball_positions.append(positions)
-            
+            positions = self._detect_ball_positions_per_frame(frame, model)
+            ball_positions.append(positions)
             # Log progress for large videos
             if i > 0 and i % 100 == 0:
                 print(f'Processed {i}/{len(frames)} frames')
-                
-        self.frame_count = len(self.multiple_ball_positions)
-        print(f'Detected balls in {self.frame_count} frames')
 
-    def _detect_ball_positions_per_frame(self, frame: np.ndarray) -> Dict[int, Tuple[int, int, int, int]]:
-        """
-        Detect ball positions in a single frame.
-        
-        Args:
-            frame: A video frame as numpy array
-            
-        Returns:
-            Dictionary with track IDs as keys and bounding boxes [x1, y1, x2, y2] as values
-        """
-        if frame is None or frame.size == 0:
-            return {}
-            
         try:
-            results = self.model.predict(frame, conf=self.confidence_threshold)[0]
-            ball_positions = {}
-            
+            # Ensure directory exists
+            Path(self.stub_path).parent.mkdir(parents=True, exist_ok=True)            
+            with open(self.stub_path, 'wb') as f:
+                pickle.dump(ball_positions, f)
+        except IOError as e:
+            raise Error(f"Error saving stub file: {e}")
+
+    def _load_ball_positions_from_stub(self) -> List[Dict[int, Tuple[int, int, int, int]]]:
+        try:
+            with open(self.stub_path, 'rb') as f:
+                return pickle.load(f)
+        except (FileNotFoundError, pickle.PickleError, EOFError) as e:
+            raise Error(f"Error loading stub file: {e}")
+
+    def _detect_ball_positions_per_frame(self, frame: np.ndarray, model) -> Dict[int, Tuple[int, int, int, int]]:
+        if frame is None or frame.size == 0:
+            raise ValueError("Frame is empty or invalid")
+
+        try:
+            results = model.predict(frame, conf=0.15)[0]
+            ball_positions = {}            
             for i, box in enumerate(results.boxes, start=1): # type: ignore
                 # Convert to list and round to integer coordinates
                 bounding_box = [int(coord) for coord in box.xyxy.tolist()[0]]
                 ball_positions[i] = bounding_box
-                
             return ball_positions
         except Exception as e:
-            print(f"Error detecting ball in frame: {e}")
-            return {}
+            raise Error(f"Error detecting ball in frame: {e}")
 
     def synthesize_ball_positions(self, max_iterations: int = 5) -> None:
-        """
-        Process detected ball positions to create a clean tracking sequence.
-        
-        Args:
-            max_iterations: Maximum number of outlier removal iterations
-        """
-        if not self.multiple_ball_positions:
-            print("No ball positions to synthesize")
-            return
+        multiple_ball_positions = self._load_ball_positions_from_stub()
             
         # First, reduce to one ball per frame
-        self.single_ball_positions = self._remove_extra_balls_detected()
+        single_ball_positions = self._remove_extra_balls_detected(multiple_ball_positions)
         # All outliers removed from single_ball_positions
-        self.clean_ball_positions = copy.deepcopy(self.single_ball_positions)
+        clean_ball_positions = copy.deepcopy(single_ball_positions)
         
         # Prepare initial data
-        self.df = self._prepare_data()
-        if self.df.empty:
-            print("Warning: No valid ball positions detected")
-            return
+        df = self._prepare_data(multiple_ball_positions, single_ball_positions, clean_ball_positions)
+        if df.empty:
+            raise Error("Warning: No valid ball positions detected")
             
         # Calculate outlier threshold based on velocity
-        velocity_stats = self.df['velocity'].agg(['mean', 'std']).to_dict()
+        velocity_stats = df['velocity'].agg(['mean', 'std']).to_dict()
         cutoff_velocity = velocity_stats['mean'] + 2 * velocity_stats['std']
         print(f'Velocity: mean {velocity_stats['mean']:.2f}, std {velocity_stats['std']:.2f}, cutoff {cutoff_velocity:.2f}')
         
         # Iteratively remove outliers
         iteration_count = 0
-        while self._remove_invalid_ball_positions(cutoff_velocity) and iteration_count < max_iterations:
-            self.df = self._prepare_data()
+        while self._remove_invalid_ball_positions(cutoff_velocity, df) and iteration_count < max_iterations:
+            df = self._prepare_data(multiple_ball_positions, single_ball_positions, clean_ball_positions)
             iteration_count += 1
             
         print(f"Completed ball position synthesis after {iteration_count} iterations")
+        df.to_csv(self.ball_positions_path, index=False)
 
-    def _remove_extra_balls_detected(self) -> List[Dict[int, Tuple[int, int, int, int]]]:
-        """
-        Select the best ball from multiple detections in each frame.
-        
-        Returns:
-            List of dictionaries with one ball per frame
-        """
+    def _remove_extra_balls_detected(self, multiple_ball_positions: List[Dict[int, Tuple[int, int, int, int]]]) -> List[Dict[int, Tuple[int, int, int, int]]]:
         single_ball_positions = []
         
-        for i, ball_positions in enumerate(self.multiple_ball_positions):
+        for i, ball_positions in enumerate(multiple_ball_positions):
             # If there's only one or no ball detected, keep as is
             if len(ball_positions) <= 1:
                 single_ball_positions.append(ball_positions.copy())
                 continue
                 
             # Get context from adjacent frames
-            last_ball_position = self._find_adjacent_ball_position(i, look_backward=True)
-            next_ball_position = self._find_adjacent_ball_position(i, look_backward=False)
+            last_ball_position = self._find_adjacent_ball_position(multiple_ball_positions, i, look_backward=True)
+            next_ball_position = self._find_adjacent_ball_position(multiple_ball_positions, i, look_backward=False)
             
             # If we don't have enough context, keep the first ball
             if last_ball_position is None or next_ball_position is None:
@@ -224,30 +112,23 @@ class BallTracker:
             
         return single_ball_positions
 
-    def _find_adjacent_ball_position(self, index: int, look_backward: bool = True) -> Optional[Tuple[int, int, int, int]]:
-        """
-        Find the nearest ball position in adjacent frames.
-        
-        Args:
-            index: Current frame index
-            look_backward: Whether to look for previous (True) or next (False) frames
-            
-        Returns:
-            Bounding box of the ball if found, None otherwise
-        """
+    def _find_adjacent_ball_position(self, 
+                                     multiple_ball_positions: List[Dict[int, Tuple[int, int, int, int]]], 
+                                     index: int, 
+                                     look_backward: bool = True) -> Optional[Tuple[int, int, int, int]]:
         if look_backward:
             if index == 0:
                 return None
                 
             search_range = range(index - 1, -1, -1)
         else:
-            if index >= len(self.multiple_ball_positions) - 1:
+            if index >= len(multiple_ball_positions) - 1:
                 return None
                 
-            search_range = range(index + 1, len(self.multiple_ball_positions))
+            search_range = range(index + 1, len(multiple_ball_positions))
             
         for i in search_range:
-            positions = self.multiple_ball_positions[i]
+            positions = multiple_ball_positions[i]
             if len(positions) == 1 and 1 in positions:
                 return positions[1]
                 
@@ -257,17 +138,6 @@ class BallTracker:
                               last_ball_position: Tuple[int, int, int, int],
                               ball_positions: Dict[int, Tuple[int, int, int, int]],
                               next_ball_position: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
-        """
-        Find the most likely ball position based on trajectory.
-        
-        Args:
-            last_ball_position: Previous ball position
-            ball_positions: Current frame's ball positions
-            next_ball_position: Next frame's ball position
-            
-        Returns:
-            Most likely bounding box for the ball
-        """
         line_start = BoundingBox.from_list(last_ball_position).center
         line_end = BoundingBox.from_list(next_ball_position).center
         
@@ -289,62 +159,32 @@ class BallTracker:
             
         return ball_positions[best_ball_id]
 
-    def _prepare_data(self) -> pd.DataFrame:
-        """
-        Process ball position data and calculate derived metrics.
-        
-        Args:
-            clean_ball_positions: List of cleaned ball positions
-            
-        Returns:
-            DataFrame with processed ball data
-        """
-        if not self.clean_ball_positions:
-            return pd.DataFrame()
-            
+    def _prepare_data(self, multiple_ball_positions, single_ball_positions, clean_ball_positions) -> pd.DataFrame:
         # Fill in missing positions
-        self.complete_ball_positions = self._interpolate_ball_positions(self.clean_ball_positions)
-        
-        # Helper function to safely extract center point
-        def safe_center_point(pos_dict):
-            if not pos_dict or 1 not in pos_dict:
-                return (0, 0)
-            return BoundingBox.from_list(pos_dict[1]).center
+        complete_ball_positions = self._interpolate_ball_positions(clean_ball_positions)
         
         # Create DataFrame with all position data
-        data = {
-            'multi_ball_position': self.multiple_ball_positions,
-            'single_ball_position': self.single_ball_positions,
-            'clean_ball_position': self.clean_ball_positions,
-            'complete_ball_position': self.complete_ball_positions,
-            'frame': range(len(self.clean_ball_positions)),
-        }
-        
-        df = pd.DataFrame(data)
+        df = pd.DataFrame({
+            'frame': range(len(clean_ball_positions)),
+            'multi_ball_position': multiple_ball_positions,
+            'single_ball_position': single_ball_positions,
+            'clean_ball_position': clean_ball_positions,
+            'complete_ball_position': complete_ball_positions,
+        })
         
         # Extract center points
-        df['centre_point'] = df['complete_ball_position'].apply(safe_center_point)
+        df['centre_point'] = df['complete_ball_position'].apply(lambda x: BoundingBox.from_list(x[1]).center)
         df[['x', 'y']] = pd.DataFrame(df['centre_point'].tolist(), index=df.index)
         
         # Calculate motion metrics
-        self._calculate_velocity(df)
-        
-        return df
-
-    def _calculate_velocity(self, df: pd.DataFrame) -> None:
-        """
-        Calculate motion metrics from position data.
-        
-        Args:
-            df: DataFrame with position data to modify in-place
-        """
-        # Basic differentials
         df['x_diff'] = df['x'].diff().fillna(0).astype(int)
         df['y_diff'] = df['y'].diff().fillna(0).astype(int)
         
         # Velocity calculations
         df['velocity'] = np.sqrt(df['x_diff']**2 + df['y_diff']**2).round(2)
         
+        return df
+
     def _interpolate_ball_positions(self, ball_positions: List[Dict[int, Tuple[int, int, int, int]]]) -> List[Dict[int, Tuple[int, int, int, int]]]:
         """
         Fill in missing ball positions using interpolation.
@@ -472,42 +312,31 @@ class BallTracker:
             for i in range(steps)
         ]
 
-    def _remove_invalid_ball_positions(self, cutoff_velocity: float) -> bool:
-        """
-        Remove ball positions with implausible velocities.
-        
-        Args:
-            cutoff_velocity: Maximum allowed velocity
-            
-        Returns:
-            Boolean indicating whether any positions were removed
-        """
-        if self.df is None or self.df.empty:
-            return False
-            
+    def _remove_invalid_ball_positions(self, cutoff_velocity: float, df: pd.DataFrame) -> bool:
         removed = False
         i = 1
-        
-        while i < self.frame_count:
+
+        frame_count = len(df)
+        while i < frame_count:
             # Skip if velocity is within acceptable range
-            if i >= len(self.df) or self.df.loc[i, 'velocity'] < cutoff_velocity: # type: ignore
+            if i >= len(df) or df.loc[i, 'velocity'] < cutoff_velocity: # type: ignore
                 i += 1
                 continue
                 
             # Found outlier
-            print(f'Outlier at frame {i}: velocity = {self.df.loc[i, "velocity"]:.2f}')
+            print(f'Outlier at frame {i}: velocity = {df.loc[i, "velocity"]:.2f}')
             
             # Determine action based on whether this is an interpolated position
-            if not self.df.loc[i, 'clean_ball_position']:
+            if not df.loc[i, 'clean_ball_position']:
                 # Find next non-interpolated position
                 next_i = i + 1
-                while next_i < self.frame_count:
-                    if not self.df.loc[next_i, 'clean_ball_position']:
+                while next_i < frame_count:
+                    if not df.loc[next_i, 'clean_ball_position']:
                         next_i += 1
                         continue
                     else:
                         # Clear the next position as it's causing the issue
-                        self.df.loc[next_i, 'clean_ball_position'].clear() # type: ignore
+                        df.loc[next_i, 'clean_ball_position'].clear() # type: ignore
                         print(f'Cleared ball position at frame: {next_i}')
                         break
                         
@@ -515,7 +344,7 @@ class BallTracker:
                 i = next_i + 1
             else:
                 # Clear current position
-                self.df.loc[i, 'clean_ball_position'].clear() # type: ignore
+                df.loc[i, 'clean_ball_position'].clear() # type: ignore
                 print(f'Cleared ball position at frame: {i}')
                 # Skip ahead
                 i += 10
@@ -524,65 +353,45 @@ class BallTracker:
             
         return removed
 
-    def draw(self, input_frames: List[np.ndarray], show_velocity: bool = True, 
-             show_position: bool = True) -> List[np.ndarray]:
-        """
-        Draw bounding boxes and tracking information on input frames.
-        
-        Args:
-            input_frames: List of video frames
-            show_velocity: Whether to display velocity information
-            show_position: Whether to display position information
-            
-        Returns:
-            Frames with tracking visualization
-        """
-        if not self.complete_ball_positions:
-            print("No ball positions available to draw")
-            return input_frames
-            
-        if len(input_frames) != len(self.complete_ball_positions):
-            print(f"Warning: Frame count mismatch. Frames: {len(input_frames)}, "
-                  f"Ball positions: {len(self.complete_ball_positions)}")
-            # Use the shorter list length
-            frames_to_process = min(len(input_frames), len(self.complete_ball_positions))
-        else:
-            frames_to_process = len(input_frames)
-            
+    def load_ball_positions_df(self) -> pd.DataFrame:
+        try:
+            return pd.read_csv(self.ball_positions_path)
+        except (FileNotFoundError, pd.errors.EmptyDataError) as e:
+            raise Error(f"Error loading ball positions: {e}")
+
+    def load_complete_ball_positions(self) -> List[Dict[int, Tuple[int, int, int, int]]]:
+        return [eval(x) for x in self.load_ball_positions_df()['complete_ball_position'].tolist()]
+
+    def draw(self, input_frames: List[np.ndarray]) -> List[np.ndarray]:
+        df = self.load_ball_positions_df()
+        complete_ball_positions = [eval(x) for x in df['complete_ball_position'].tolist()]
         output_frames = []
         
-        for i in range(frames_to_process):
+        for i in range(len(input_frames)):
             # Create a copy to avoid modifying original frames
             frame_copy = input_frames[i].copy()
-            ball_position = self.complete_ball_positions[i]
+            ball_position = complete_ball_positions[i]
             
             for track_id, bbox in ball_position.items():
-                if not bbox or len(bbox) != 4:
-                    continue
-                    
                 # Create bounding box for easier handling
                 box = BoundingBox.from_list(bbox)
                 
                 # Draw bounding box
                 cv2.rectangle(frame_copy, (box.x1, box.y1), (box.x2, box.y2), (0, 255, 0), 2)
                 
-                # Add additional information if available
-                if self.df is not None and i < len(self.df):
-                    # Add velocity information
-                    if show_velocity:
-                        velocity = self.df.loc[i, 'velocity']
-                        cv2.putText(
-                            frame_copy, f"V: {velocity:.1f}", (box.x2 + 10, box.y1),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
-                        )
+                # Add velocity information
+                velocity = df.loc[i, 'velocity']
+                cv2.putText(
+                    frame_copy, f"V: {velocity:.1f}", (box.x2 + 10, box.y1),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
+                )
                     
-                    # Add position information
-                    if show_position:
-                        x, y = self.df.loc[i, 'x'], self.df.loc[i, 'y']
-                        cv2.putText(
-                            frame_copy, f"({x}, {y})", (box.x2 + 10, box.y1 + 25),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
-                        )
+                # Add position information
+                x, y = df.loc[i, 'x'], df.loc[i, 'y']
+                cv2.putText(
+                    frame_copy, f"({x}, {y})", (box.x2 + 10, box.y1 + 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
+                )
                         
             output_frames.append(frame_copy)
             

@@ -7,9 +7,6 @@ from .constants import (
     GRAVITY, 
     BALL_TERMINAL_VELOCITY_SQUARED, 
     DEFAULT_VERTICAL_VELOCITY,
-    AIR_DENSITY, 
-    BALL_DRAG_COEFFICIENT, 
-    BALL_CROSS_SECTION, 
     BALL_MASS,
     BALL_DRAG_FACTOR,
 )
@@ -57,7 +54,6 @@ def get_distance_between_point_and_line(point: Tuple[int, int], line_start: Tupl
     point_sh = Point(point[0], point[1])
     line_sh = LineString([line_start, line_end])
     distance_infinite_sh = point_sh.distance(line_sh)
-    print(f"Shapely: Distance from {point_sh} to the line {line_sh}: {distance_infinite_sh}")
     return distance_infinite_sh
 
 # U0 = (Vt^2)*(e^(g*x/Vt^2) - 1)/(g*t)
@@ -74,7 +70,7 @@ def get_horizontal_velocity_by_time(initial_velocity: float, time: float) -> flo
 
 # Upward acceleration:   -g - (rho * Cd * A * v**2) / (2 * m)
 # Downward acceleration: -g + (rho * Cd * A * v**2) / (2 * m) 
-def simulate_vertical_motion_hit(v0: float, h_initial: float, rho: float, Cd: float, A: float, m: float, g: float) -> Tuple[float, float]:
+def simulate_vertical_motion_hit(v0: float, h_initial: float) -> float:
     dt = 0.001  # Time step
     t = 0
     y = h_initial
@@ -82,40 +78,29 @@ def simulate_vertical_motion_hit(v0: float, h_initial: float, rho: float, Cd: fl
     
     # Upward motion
     while v > 0:
-        v = v + dt * (-g - (rho * Cd * A * v**2) / (2 * m))
+        v = v + dt * (-GRAVITY - (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
         y = y + v * dt
         t += dt
-    
-    # At the top, velocity becomes 0
-    v = 0
     
     # Downward motion
     while y > 0:
-        v = v + dt * (-g + (rho * Cd * A * v**2) / (2 * m))
+        v = v + dt * (-GRAVITY + (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
         y = y + v * dt
         t += dt
     
-    return t, y
+    return t
 
 def get_initial_vertical_velocity_hit(initial_height: float, total_seconds: float) -> float:
-    print(f'Initial height: {initial_height}, Total seconds: {total_seconds}')
     # Initial guess for v0
     v0_guess = DEFAULT_VERTICAL_VELOCITY
 
     # Iterative search for v0
     tolerance = 0.001
-    max_iterations = 1000
-    last_2_v0 = deque(maxlen=2)
-    last_2_tf = deque(maxlen=2)
+    max_iterations = 100
+    last_2_v0: deque[float] = deque(maxlen=2)
+    last_2_tf: deque[float] = deque(maxlen=2)
     for i in range(max_iterations):
-        time_of_flight, height_reached = simulate_vertical_motion_hit(v0_guess, 
-                                                  initial_height, 
-                                                  AIR_DENSITY, 
-                                                  BALL_DRAG_COEFFICIENT, 
-                                                  BALL_CROSS_SECTION, 
-                                                  BALL_MASS, 
-                                                  GRAVITY)
-        print(f'iteration: {i}, time_of_flight: {time_of_flight}, height_reached: {height_reached}, vo_guess: {v0_guess}')
+        time_of_flight = simulate_vertical_motion_hit(v0_guess, initial_height)
 
         if v0_guess in last_2_v0:
             v = last_2_v0[0] - last_2_v0[1]
@@ -123,23 +108,37 @@ def get_initial_vertical_velocity_hit(initial_height: float, total_seconds: floa
             td = last_2_tf[0] - total_seconds
             v0_guess = last_2_v0[0] - (td / t) * v
             break
+        elif time_of_flight in last_2_tf:
+            break            
         else:
             last_2_v0.append(v0_guess)
             last_2_tf.append(time_of_flight)
 
         if abs(time_of_flight - total_seconds) < tolerance:
             break
-        elif time_of_flight < total_seconds:
-            v0_guess += 0.1  # Increase v0
+
+        adjustment = calculate_time_adjustment(last_2_tf, time_of_flight, total_seconds)
+        if time_of_flight < total_seconds:
+            v0_guess += adjustment  # Increase v0
         else:
-            v0_guess -= 0.1  # Decrease v0
+            v0_guess -= adjustment  # Decrease v0
     
-    print(f'Final v0_guess: {v0_guess}')
     return v0_guess
+
+def calculate_time_adjustment(last_2_tf: deque[float], time_of_flight: float, total_seconds: float) -> float:
+    if len(last_2_tf) < 2:
+        return 0.1
+    delta = abs(last_2_tf[0] - last_2_tf[1])
+    diff = abs(time_of_flight - total_seconds)
+    magnitude = diff / delta
+    if magnitude > 5:
+        return 0.1 * magnitude
+    else:
+        return 0.1
 
 # Upward acceleration:   -g - (rho * Cd * A * v**2) / (2 * m)
 # Downward acceleration: -g + (rho * Cd * A * v**2) / (2 * m) 
-def simulate_vertical_motion_bounce(v0: float, total_seconds: float, rho: float, Cd: float, A: float, m: float, g: float) -> float:
+def simulate_vertical_motion_bounce(v0: float, total_seconds: float) -> float:
     dt = 0.001  # Time step
     t = 0
     y = 0
@@ -147,37 +146,29 @@ def simulate_vertical_motion_bounce(v0: float, total_seconds: float, rho: float,
     
     # Upward motion
     while t < total_seconds and v > 0:
-        v = v + dt * (-g - (rho * Cd * A * v**2) / (2 * m))
+        v = v + dt * (-GRAVITY - (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
         y = y + v * dt
         t += dt
     
     # Downward motion
     while t < total_seconds and v <= 0:
-        v = v + dt * (-g + (rho * Cd * A * v**2) / (2 * m))
+        v = v + dt * (-GRAVITY + (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
         y = y + v * dt
         t += dt
     
     return y
 
 def get_initial_vertical_velocity_bounce(final_height: float, total_seconds: float) -> float:
-    print(f'Final height: {final_height}, Total seconds: {total_seconds}')
     # Initial guess for v0
     v0_guess = DEFAULT_VERTICAL_VELOCITY
 
     # Iterative search for v0
     tolerance = 0.01
     max_iterations = 1000
-    last_2_v0 = deque(maxlen=2)
-    last_2_hr = deque(maxlen=2)
+    last_2_v0: deque[float] = deque(maxlen=2)
+    last_2_hr: deque[float] = deque(maxlen=2)
     for i in range(max_iterations):
-        height_reached = simulate_vertical_motion_bounce(v0_guess, 
-                                                  total_seconds,
-                                                  AIR_DENSITY, 
-                                                  BALL_DRAG_COEFFICIENT, 
-                                                  BALL_CROSS_SECTION, 
-                                                  BALL_MASS, 
-                                                  GRAVITY)
-        print(f'iteration: {i}, height_reached: {height_reached}, vo_guess: {v0_guess}')
+        height_reached = simulate_vertical_motion_bounce(v0_guess, total_seconds)
 
         if v0_guess in last_2_v0:
             v = last_2_v0[0] - last_2_v0[1]
@@ -191,13 +182,25 @@ def get_initial_vertical_velocity_bounce(final_height: float, total_seconds: flo
 
         if abs(height_reached - final_height) < tolerance:
             break
-        elif height_reached < final_height:
-            v0_guess += 0.1  # Increase v0
+
+        adjustment = calculate_height_adjustment(last_2_hr, height_reached, final_height)
+        if height_reached < final_height:
+            v0_guess += adjustment  # Increase v0
         else:
-            v0_guess -= 0.1  # Decrease v0
+            v0_guess -= adjustment  # Decrease v0
     
-    print(f'Final v0_guess: {v0_guess}')
     return v0_guess
+
+def calculate_height_adjustment(last_2_hr: deque[float], height_reached: float, final_height: float) -> float:
+    if len(last_2_hr) < 2:
+        return 0.1
+    delta = abs(last_2_hr[0] - last_2_hr[1])
+    diff = abs(height_reached - final_height)
+    magnitude = diff / delta
+    if magnitude > 5:
+        return 0.1 * magnitude
+    else:
+        return 0.1
 
 def get_vertical_distances_and_velocities(v0: float, h_initial: float, dt: float, t_max: float=5.0) -> Tuple[List[float], List[float]]:
     """Simulates the trajectory of the object with air resistance."""

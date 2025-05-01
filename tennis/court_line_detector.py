@@ -3,13 +3,14 @@ import torchvision.transforms as transforms
 import torchvision.models as models
 from torchvision.models import ResNet50_Weights
 import cv2
+import pandas as pd
 import numpy as np
 from sympy import Line
 import sympy
 from scipy.spatial import distance
 from typing import List, Tuple, Optional
 import logging
-from .constants import PRE_TRAINED_MODEL_IMAGE_SIZE, COURT_KEYPOINTS
+from .constants import RESNET50_PRE_TRAINED_MODEL_IMAGE_SIZE, COURT_KEYPOINTS
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -24,24 +25,15 @@ class CourtLineDetector:
     visualization tools.
     """
     
-    def __init__(self, model_path: str):
+    def __init__(self):
         """
         Initialize the court line detector with a pre-trained model.
         
         Args:
             model_path: Path to the pre-trained model weights
         """
-        # Set up device
-        self.device = self._get_device()
-        logger.info(f"Using device: {self.device}")
-        
-        # Initialize model
-        self.model = self._initialize_model(model_path)
-        logger.info("Initialised model")
-        
-        # Setup image transformation pipeline
-        self.transform = self._setup_transforms()
-        
+        self.court_keypoints_path = 'analysis/court_keypoints.csv'
+
         # Initialize keypoint storage
         self.predicted_keypoints = None
         self.refined_predicted_keypoints = []
@@ -80,12 +72,12 @@ class CourtLineDetector:
         """Setup image transformation pipeline for model input."""
         return transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((PRE_TRAINED_MODEL_IMAGE_SIZE, PRE_TRAINED_MODEL_IMAGE_SIZE)),
+            transforms.Resize((RESNET50_PRE_TRAINED_MODEL_IMAGE_SIZE, RESNET50_PRE_TRAINED_MODEL_IMAGE_SIZE)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
-    def predict_keypoints(self, image: np.ndarray) -> None:
+    def predict_keypoints(self, image: np.ndarray, model_path: str) -> None:
         """
         Predict keypoints in the given image.
         
@@ -95,6 +87,17 @@ class CourtLineDetector:
         Returns:
             List of predicted keypoints as (x, y) tuples
         """
+        # Set up device
+        self.device = self._get_device()
+        logger.info(f"Using device: {self.device}")
+        
+        # Initialize model
+        self.model = self._initialize_model(model_path)
+        logger.info("Initialised model")
+        
+        # Setup image transformation pipeline
+        self.transform = self._setup_transforms()
+        
         # Convert BGR to RGB for processing
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         # image_rgb is of shape (h, w, 3)
@@ -123,8 +126,8 @@ class CourtLineDetector:
         keypoints = outputs.squeeze().cpu().numpy()
         
         # Scale keypoints to original image size
-        keypoints[::2] *= original_w / PRE_TRAINED_MODEL_IMAGE_SIZE
-        keypoints[1::2] *= original_h / PRE_TRAINED_MODEL_IMAGE_SIZE
+        keypoints[::2] *= original_w / RESNET50_PRE_TRAINED_MODEL_IMAGE_SIZE
+        keypoints[1::2] *= original_h / RESNET50_PRE_TRAINED_MODEL_IMAGE_SIZE
         
         # Convert to list of (x, y) tuples
         self.predicted_keypoints = [(int(keypoints[i]), int(keypoints[i + 1])) 
@@ -372,7 +375,27 @@ class CourtLineDetector:
 
     def set_court_keypoints(self, court_keypoints: List[Tuple[int, int]]) -> None:
         self.court_keypoints = court_keypoints
+        df = pd.DataFrame({
+            'predicted_keypoints': self.predicted_keypoints,
+            'refined_predicted_keypoints': self.refined_predicted_keypoints,
+            'homographied_keypoints': self.homographied_keypoints,
+            'refined_homographied_keypoints': self.refined_homographied_keypoints,
+            'court_keypoints': self.court_keypoints
+        })
+        df.to_csv(self.court_keypoints_path, index=False)
 
+    def load_court_keypoints(self) -> List[Tuple[int, int]]:
+        """
+        Load court keypoints from CSV file.
+        
+        Returns:
+            List of court keypoints
+        """
+        df = pd.read_csv(self.court_keypoints_path)
+        court_keypoints = df['court_keypoints'].tolist()
+        court_keypoints = [eval(x) for x in court_keypoints]
+        return court_keypoints
+    
     def draw_keypoints(self, image: np.ndarray, 
                        color: Tuple[int, int, int] = (0, 255, 255),
                        radius: int = 5) -> np.ndarray:

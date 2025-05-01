@@ -11,31 +11,10 @@ class BallAnalyser:
     near bounces (bounces on near side), and far bounces (bounces on far side).
     """
 
-    def __init__(self, frame_count: int):
-        """
-        Initialize the BallAnalyser.
-        
-        Args:
-            frame_count: Total number of frames in the video.
-        """
-        self.frame_count = frame_count
-        
-        # Results storage
-        self.hits_and_bounces: List[int] = []
-        self.ball_hits: List[int] = []
+    def __init__(self):
+        pass
 
-    def find_ball_hits_and_bounces(self, fps: int, df: pd.DataFrame) -> None:
-        """
-        Main method to identify all ball hits and bounces in the data.
-        
-        Args:
-            fps: Frames per second of the video.
-            df: DataFrame containing ball tracking data with columns:
-                - velocity_rolling_mean
-                - velocity_vector
-                - velocity_vector_delta
-                - y_rolling_mean_delta
-        """
+    def find_ball_hits_and_bounces(self, fps: int, df: pd.DataFrame) -> List[int]:
         # Signed velocity (positive when moving down, negative when moving up)
         df['velocity_vector'] = np.where(
             df['y_diff'] >= 0,
@@ -72,9 +51,9 @@ class BallAnalyser:
         far_hits = self._find_far_hits(df, near_hits)
         
         # Process event relationships
-        self.hits_and_bounces = self._sort_hits_and_bounces(near_hits, near_bounces, far_hits, far_bounces)
+        return self._sort_hits_and_bounces(near_hits, near_bounces, far_hits, far_bounces)
 
-    def _find_near_hits(self, df: Any) -> List[int]:
+    def _find_near_hits(self, df: pd.DataFrame) -> List[int]:
         """
         Find near hits (hits by player closest to camera) by identifying 
         large negative velocity deltas followed by consistent negative velocity.
@@ -92,7 +71,7 @@ class BallAnalyser:
         print(f'Velocity delta: mean {mean}, std {std}, cutoff {cutoff}')
         
         # Find candidate frames with significant velocity changes
-        candidates = [i for i in range(2, self.frame_count) 
+        candidates = [i for i in range(2, len(df))
                      if df.loc[i, 'velocity_vector_delta'] < cutoff]
         print(f'Near hits candidates: {candidates}')
         
@@ -103,7 +82,7 @@ class BallAnalyser:
         
         return near_hits
 
-    def _all_negative_velocity(self, start_index: int, count: int, df: Any) -> bool:
+    def _all_negative_velocity(self, start_index: int, count: int, df) -> bool:
         """
         Check if velocity vectors are negative for a consecutive number of frames.
         
@@ -115,7 +94,7 @@ class BallAnalyser:
         Returns:
             True if all frames have negative velocity, False otherwise.
         """
-        end_index = min(start_index + count, self.frame_count)
+        end_index = min(start_index + count, len(df))
         return all(df.loc[i, 'velocity_vector'] < 0 for i in range(start_index, end_index))
 
     def _find_near_bounces(self, peaks: np.ndarray, fps: int, df: pd.DataFrame, near_hits: List[int]) -> List[int]:
@@ -179,7 +158,7 @@ class BallAnalyser:
             Tuple of (sum of velocity deltas, refined bounce frame index).
         """
         start_index = candidate
-        end_index = min(start_index + 10, self._get_next_near_hit(start_index, near_hits))
+        end_index = min(start_index + 10, self._get_next_near_hit(start_index, near_hits, len(df)))
         min_velocity_delta_index = start_index
         sum_velocity_delta: float = 0
 
@@ -190,7 +169,7 @@ class BallAnalyser:
             
         return sum_velocity_delta, min_velocity_delta_index
 
-    def _get_next_near_hit(self, index: int, near_hits: List[int]) -> int:
+    def _get_next_near_hit(self, index: int, near_hits: List[int], frame_count: int) -> int:
         """
         Get the frame index of the next near hit after a given index.
         
@@ -203,7 +182,7 @@ class BallAnalyser:
         for near_hit in near_hits:
             if index < near_hit:
                 return near_hit
-        return self.frame_count - 1
+        return frame_count - 1
 
     def _find_far_bounces(self, troughs: np.ndarray, fps: int, df: pd.DataFrame, near_hits: List[int], near_bounces: List[int]) -> List[int]:
         """
@@ -218,7 +197,7 @@ class BallAnalyser:
             List of frame indices representing far bounces.
         """
         # Find valid frame ranges where far bounces could occur
-        frame_ranges = self._find_far_bounce_frame_ranges(fps, near_hits, near_bounces)
+        frame_ranges = self._find_far_bounce_frame_ranges(fps, near_hits, near_bounces, len(df))
         print(f'frame ranges: {frame_ranges}')
         
         # Filter troughs to those within valid ranges
@@ -238,7 +217,7 @@ class BallAnalyser:
         
         return far_bounces
 
-    def _find_far_bounce_frame_ranges(self, fps: int, near_hits: List[int], near_bounces: List[int]) -> List[Tuple[int, int]]:
+    def _find_far_bounce_frame_ranges(self, fps: int, near_hits: List[int], near_bounces: List[int], frame_count: int) -> List[Tuple[int, int]]:
         """
         Find potential frame ranges where far bounces could occur.
         Typically between near hits and near bounces with appropriate buffers.
@@ -270,7 +249,7 @@ class BallAnalyser:
             # Define range between hit and bounce (or to end of frames)
             if bounce_index == len(near_hits_bounces):
                 range_start = int(near_hits_bounces[hit_index] + after_hit_buffer)
-                frame_ranges.append((range_start, self.frame_count))
+                frame_ranges.append((range_start, frame_count))
                 break
             else:
                 range_start = int(near_hits_bounces[hit_index] + after_hit_buffer)
@@ -325,7 +304,7 @@ class BallAnalyser:
         """
         return any(start < trough < end for start, end in frame_ranges)
 
-    def _refine_far_bounce(self, candidate: int, df: Any) -> int:
+    def _refine_far_bounce(self, candidate: int, df) -> int:
         """
         Refine far bounce detection by finding frame with lowest velocity delta.
         
@@ -337,7 +316,7 @@ class BallAnalyser:
             Refined bounce frame index.
         """
         start_index = candidate
-        end_index = min(start_index + 10, self.frame_count)
+        end_index = min(start_index + 10, len(df))
         
         # Find frame with lowest velocity delta
         min_velocity_delta_index = start_index
@@ -396,7 +375,7 @@ class BallAnalyser:
         start_index += 1
         
         # Verify that velocity remains positive after the hit
-        for i in range(start_index, min(start_index + 10, self.frame_count)):
+        for i in range(start_index, min(start_index + 10, len(df))):
             if df.loc[i, 'velocity_vector'] < 0:
                 return None
                 

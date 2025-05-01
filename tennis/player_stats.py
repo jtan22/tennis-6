@@ -4,18 +4,16 @@ from copy import deepcopy
 from typing import List
 
 from tennis.reference_frame import ReferenceFrame
-from .constants import PLAYER_HIT, STATS_MARGIN_X, STATS_MARGIN_Y, DOUBLES_LINE_WIDTH, SIDE_RUN_WIDTH
+from .constants import PLAYER_HITTING, PLAYER_STATS_MARGIN_X, PLAYER_STATS_MARGIN_Y, REFERENCE_COURT_METER_TO_PIXEL_RATIO, PLAYER_STATS_WIDTH
 from tennis.utils import get_distance_between_points
 
 class PlayerStats():
-    def __init__(self, width, reference_court_canvas_width):
-        self.canvas_width = width
-        self.canvas_height = int(width / 2)
-        self.canvas_x1 = STATS_MARGIN_X
-        self.canvas_y1 = STATS_MARGIN_Y
-        self.canvas_x2 = self.canvas_x1 + self.canvas_width
+    def __init__(self):
+        self.canvas_height = int(PLAYER_STATS_WIDTH / 2)
+        self.canvas_x1 = PLAYER_STATS_MARGIN_X
+        self.canvas_y1 = PLAYER_STATS_MARGIN_Y
+        self.canvas_x2 = self.canvas_x1 + PLAYER_STATS_WIDTH
         self.canvas_y2 = self.canvas_y1 + self.canvas_height
-        self.meter_to_pixel_ratio = (DOUBLES_LINE_WIDTH + SIDE_RUN_WIDTH * 2) / reference_court_canvas_width
 
     def collect_stats(self, reference_frames: List[ReferenceFrame]):
         """
@@ -39,27 +37,27 @@ class PlayerStats():
             player_stats = deepcopy(self.player_stats_data[-1])
             player_stats['frame_num'] = i
             player_1_distance_pixels = get_distance_between_points(
-                reference_frames[i].player_1.reference_coordinate, 
-                reference_frames[i - 1].player_1.reference_coordinate)
-            player_1_distance_meters = round(player_1_distance_pixels * self.meter_to_pixel_ratio, 2)
+                reference_frames[i].near_player.reference_coordinate, 
+                reference_frames[i - 1].near_player.reference_coordinate)
+            player_1_distance_meters = round(player_1_distance_pixels * REFERENCE_COURT_METER_TO_PIXEL_RATIO, 2)
             player_2_distance_pixels = get_distance_between_points(
-                reference_frames[i].player_2.reference_coordinate, 
-                reference_frames[i - 1].player_2.reference_coordinate)
-            player_2_distance_meters = round(player_2_distance_pixels * self.meter_to_pixel_ratio, 2)
+                reference_frames[i].far_player.reference_coordinate, 
+                reference_frames[i - 1].far_player.reference_coordinate)
+            player_2_distance_meters = round(player_2_distance_pixels * REFERENCE_COURT_METER_TO_PIXEL_RATIO, 2)
             player_stats[f'player_1_last_player_distance'] = player_1_distance_meters
             player_1_total_distance = round(player_stats[f'player_1_total_player_distance'] + player_1_distance_meters, 2)
             player_stats[f'player_1_total_player_distance'] = player_1_total_distance
             player_stats[f'player_2_last_player_distance'] = player_2_distance_meters
             player_2_total_distance = round(player_stats[f'player_2_total_player_distance'] + player_2_distance_meters, 2)
             player_stats[f'player_2_total_player_distance'] = player_2_total_distance
-            if reference_frames[i].player_1.action == PLAYER_HIT:
+            if reference_frames[i].near_player.action == PLAYER_HITTING:
                 velocity_meters_per_second = reference_frames[i].ball.velocity
                 if velocity_meters_per_second > 0:
                     player_stats[f'player_1_number_of_shots'] += 1
                     velocity_km_per_hour = round(velocity_meters_per_second * 3.6, 2)
                     player_stats[f'player_1_last_shot_speed'] = velocity_km_per_hour
                     player_stats[f'player_1_total_shot_speed'] += velocity_km_per_hour
-            if reference_frames[i].player_2.action == PLAYER_HIT:
+            if reference_frames[i].far_player.action == PLAYER_HITTING:
                 velocity_meters_per_second = reference_frames[i].ball.velocity
                 if velocity_meters_per_second > 0:
                     player_stats[f'player_2_number_of_shots'] += 1
