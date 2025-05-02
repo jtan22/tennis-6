@@ -2,9 +2,12 @@ import cv2
 from shapely.geometry import Point, LineString
 import math
 import numpy as np
+import sympy
+from sympy import Line
 from scipy.spatial import distance
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from collections import deque
+import logging
 from .constants import (
     GRAVITY, 
     BALL_TERMINAL_VELOCITY_SQUARED, 
@@ -13,6 +16,10 @@ from .constants import (
     BALL_DRAG_FACTOR,
     COURT_HOMOGRAPHY_CONFIGURATIONS,
 )
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 def read_video(video_path):
     # Read a video file and return its frames as a list of numpy arrays
@@ -59,6 +66,74 @@ def get_distance_between_point_and_line(point: Tuple[int, int], line_start: Tupl
     distance_infinite_sh = point_sh.distance(line_sh)
     return distance_infinite_sh
 
+def line_intersection(line1: np.ndarray, line2: np.ndarray) -> Optional[Tuple[int, int]]:
+    try:
+        # Create SymPy Line objects
+        l1 = Line((line1[0], line1[1]), (line1[2], line1[3]))
+        l2 = Line((line2[0], line2[1]), (line2[2], line2[3]))
+        
+        # Find intersection
+        intersection = l1.intersection(l2) # type: ignore
+        
+        # Process result
+        if not intersection or len(intersection) == 0:
+            return None
+        
+        if isinstance(intersection[0], sympy.geometry.point.Point2D): # type: ignore
+            x, y = intersection[0].coordinates
+            return (int(x), int(y))
+        else:
+            return None
+    except Exception as e:
+        logger.warning(f"Error calculating line intersection: {e}")
+
+def merge_lines(lines: List[np.ndarray]) -> List[np.ndarray]:
+    if lines is None or len(lines) == 0:
+        return []
+        
+    # Sort lines based on x-coordinate
+    lines = sorted(lines, key=lambda line: line[0])
+    
+    # Track which lines have been merged
+    mask = [True] * len(lines)
+    merged_lines = []
+    
+    # Merge similar lines
+    for i, line in enumerate(lines):
+        if not mask[i]:
+            continue
+
+        curr_line = line.copy()
+        
+        # Check subsequent lines for possible merges
+        for j in range(i + 1, len(lines)):
+            if not mask[j]:
+                continue
+
+            # Extract line coordinates
+            x1, y1, x2, y2 = curr_line
+            x3, y3, x4, y4 = lines[j]
+            
+            # Calculate distances between endpoints
+            dist1 = distance.euclidean((x1, y1), (x3, y3))
+            dist2 = distance.euclidean((x2, y2), (x4, y4))
+            
+            # If endpoints are close, merge the lines
+            if dist1 < 20 and dist2 < 20:
+                curr_line = np.array([
+                    int((x1 + x3) / 2), 
+                    int((y1 + y3) / 2),
+                    int((x2 + x4) / 2), 
+                    int((y2 + y4) / 2)
+                ], dtype=np.int32)
+                
+                # Mark the merged line
+                mask[j] = False
+        
+        merged_lines.append(curr_line)
+            
+    return merged_lines
+
 def get_homography_matrix(standard_keypoints: List[Tuple[int, int]], image_keypoints: List[Tuple[int, int]]) -> np.ndarray:
     homography_matrix = None
     distance_min = np.inf
@@ -98,7 +173,7 @@ def get_homography_matrix(standard_keypoints: List[Tuple[int, int]], image_keypo
 
     return homography_matrix        
 
-def perspective_transform_coordinates(coordinates: List[Tuple[int, int]], homography_matrix: np.ndarray) -> List[Tuple[int, int]]:
+def transform_coordinates(coordinates: List[Tuple[int, int]], homography_matrix: np.ndarray) -> List[Tuple[int, int]]:
     coordinates_3d = np.array(coordinates, dtype=np.float32).reshape((-1, 1, 2))
     best_keypoints = cv2.perspectiveTransform(coordinates_3d, homography_matrix)
     return [(int(x), int(y)) for x, y in best_keypoints.reshape(-1, 2)]

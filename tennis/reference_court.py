@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import copy
 import pandas as pd
-from scipy.spatial import distance
 from typing import List, Dict, Tuple
 
 from tennis.bounding_box import BoundingBox
@@ -20,19 +19,11 @@ from .utils import (
     get_vertical_distances_and_velocities,
     get_hypotenuse,
     get_homography_matrix,
-    perspective_transform_coordinates,
+    transform_coordinates,
 )
 from .constants import (
     BALL_FAR_BOUNCE, 
     DOUBLES_LINE_WIDTH, 
-    DOUBLES_ALLEY_WIDTH, 
-    RUN_BACK_DEPTH,
-    SIDE_RUN_WIDTH, 
-    HALF_COURT_DEPTH, 
-    NO_MANS_LAND_DEPTH, 
-    REFERENCE_COURT_CANVAS_WIDTH,
-    REFERENCE_COURT_MARGIN_X,
-    REFERENCE_COURT_MARGIN_Y, 
     REFERENCE_COURT_PIXEL_TO_METER_RATIO,
     CENTER_LINE_DEPTH, 
     BALL_FAR_HIT, 
@@ -41,6 +32,14 @@ from .constants import (
     BALL_IN_FLIGHT, 
     PLAYER_RUNNING, 
     PLAYER_HITTING,
+    REFERENCE_COURT_X1,
+    REFERENCE_COURT_X2,
+    REFERENCE_KEYPOINTS,
+    REFERENCE_COURT_CANVAS_DEPTH,
+    REFERENCE_COURT_CANVAS_WIDTH,
+    REFERENCE_COURT_MARGIN_X,
+    REFERENCE_COURT_MARGIN_Y,
+    REFERENCE_COURT_LINES,
 )
 
 class ReferenceCourt:
@@ -69,106 +68,25 @@ class ReferenceCourt:
     2-5---------7-3
     """
     
-    def __init__(self, frame_width: int, frame_height: int):
-        """
-        Initialize the reference court with the given dimensions.
-        
-        Args:
-            frame_width: Width of the video frame
-            frame_height: Height of the video frame
-            canvas_width: Width of the canvas to draw the reference court
-        """
+    def __init__(self):
         self.reference_frames_path = 'analysis/reference_frames.csv'
 
-        self.canvas_depth = round(((HALF_COURT_DEPTH + RUN_BACK_DEPTH) * 2) * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
-
-        # Initialize canvas positions on the frame
-        self.canvas_x2 = frame_width - REFERENCE_COURT_MARGIN_X
-        self.canvas_x1 = self.canvas_x2 - REFERENCE_COURT_CANVAS_WIDTH
-        self.canvas_y2 = frame_height - REFERENCE_COURT_MARGIN_Y
-        self.canvas_y1 = self.canvas_y2 - self.canvas_depth
-
-        print(f'canvas size: {REFERENCE_COURT_CANVAS_WIDTH} x {round(self.canvas_depth)}')
-        
-        # Initialize court positions on the canvas
-        self.court_x1 = round(SIDE_RUN_WIDTH * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
-        self.court_x2 = REFERENCE_COURT_CANVAS_WIDTH - self.court_x1
-        self.court_y1 = round(RUN_BACK_DEPTH * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
-        self.court_y2 = self.canvas_depth - self.court_y1
-
-        print(f'court size: {round(self.court_x2 - self.court_x1)} x {round(self.court_y2 - self.court_y1)}')
-        
-        self.doubles_alley_width = round(DOUBLES_ALLEY_WIDTH * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
-        self.no_mans_land_depth = round(NO_MANS_LAND_DEPTH * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
-        
         # Initialize member variables that will be set later
         self.homography_matrix: np.ndarray = np.empty((3, 3), dtype=np.float32)
         self.inverse_homography_matrix = np.empty((3, 3), dtype=np.float32)
-        self.homographied_keypoints = []
+        self.court_keypoints = []
         self.reference_frames = []
         
-        self._initialize_keypoints()
-        self._initialize_court_lines()
-    
-    def _initialize_keypoints(self) -> None:
-        """Initialize the 14 key points of the reference court."""
-        self.keypoints: List[Tuple[int, int]] = [
-            (self.court_x1, self.court_y1),  # 0
-            (self.court_x2, self.court_y1),  # 1
-            (self.court_x1, self.court_y2),  # 2
-            (self.court_x2, self.court_y2),  # 3
-            (self.court_x1 + self.doubles_alley_width, self.court_y1),  # 4
-            (self.court_x1 + self.doubles_alley_width, self.court_y2),  # 5
-            (self.court_x2 - self.doubles_alley_width, self.court_y1),  # 6
-            (self.court_x2 - self.doubles_alley_width, self.court_y2),  # 7
-            (self.court_x1 + self.doubles_alley_width, self.court_y1 + self.no_mans_land_depth),  # 8
-            (self.court_x2 - self.doubles_alley_width, self.court_y1 + self.no_mans_land_depth),  # 9
-            (self.court_x1 + self.doubles_alley_width, self.court_y2 - self.no_mans_land_depth),  # 10
-            (self.court_x2 - self.doubles_alley_width, self.court_y2 - self.no_mans_land_depth),  # 11
-            (round((self.court_x1 + self.court_x2) / 2), self.court_y1 + self.no_mans_land_depth),  # 12
-            (round((self.court_x1 + self.court_x2) / 2), self.court_y2 - self.no_mans_land_depth)   # 13
-        ]
-    
-    def _initialize_court_lines(self) -> None:
-        """Initialize the court lines connecting key points."""
-        self.court_lines = [
-            (0, 2),   # Left sideline
-            (4, 5),   # Left singles sideline
-            (6, 7),   # Right singles sideline
-            (1, 3),   # Right sideline
-            (0, 1),   # Top baseline
-            (8, 9),   # Top service line
-            (12, 13), # Center service line
-            (10, 11), # Bottom service line
-            (2, 3)    # Bottom baseline
-        ]
-    
-    def homograph_keypoints(self, given_keypoints: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-        self.homography_matrix = get_homography_matrix(self.keypoints, given_keypoints)
-        self.inverse_homography_matrix = np.linalg.inv(self.homography_matrix)
-        
-        # Apply homography to reference keypoints
-        self.homographied_keypoints = perspective_transform_coordinates(self.keypoints, self.homography_matrix)
-        
-        # Preserve detected keypoints where available
-        for i in range(len(self.homographied_keypoints)):
-            if given_keypoints[i] is not None:
-                self.homographied_keypoints[i] = given_keypoints[i]
-                
-        return self.homographied_keypoints
-
-    def get_reference_coordinate(self, original_coordinate: Tuple[int, int]) -> Tuple[int, int]:
-        return perspective_transform_coordinates([original_coordinate], self.inverse_homography_matrix)[0]
-
-    def get_original_coordinate(self, reference_coordinate: Tuple[int, int]) -> Tuple[int, int]:
-        return perspective_transform_coordinates([reference_coordinate], self.homography_matrix)[0]
-
     def compute_reference_coordinates(self, 
+                                court_keypoints: List[Tuple[int, int]],
                                 near_player_positions: List[Dict[int, Tuple[int, int, int, int]]], 
                                 far_player_positions: List[Dict[int, Tuple[int, int, int, int]]], 
                                 ball_positions: List[Dict[int, Tuple[int, int, int, int]]], 
                                 hits_and_bounces: List[int | None], 
                                 fps: int) -> None:
+        self.court_keypoints = court_keypoints
+        self.homography_matrix = get_homography_matrix(REFERENCE_KEYPOINTS, court_keypoints)
+        self.inverse_homography_matrix = np.linalg.inv(self.homography_matrix)
         self.reference_frames = self._create_reference_frames(near_player_positions, far_player_positions, ball_positions)
         self._compute_ball_coordinates(hits_and_bounces, fps)
         df = pd.DataFrame({
@@ -242,7 +160,7 @@ class ReferenceCourt:
         for player_id, bounding_box in player_positions.items():
             x1, y1, x2, y2 = bounding_box
             original_coordinate_bottom_center = ((x1 + x2) // 2, y2)
-            reference_coordinate = self.get_reference_coordinate(original_coordinate_bottom_center)
+            reference_coordinate = transform_coordinates([original_coordinate_bottom_center], self.inverse_homography_matrix)[0]
             reference_player = ReferencePlayer(
                 player_id=player_id,
                 original_bounding_box=BoundingBox(x1, y1, x2, y2),
@@ -261,7 +179,7 @@ class ReferenceCourt:
             reference_ball = ReferenceBall(
                 ball_id=ball_id,
                 original_bounding_box=BoundingBox(x1, y1, x2, y2),
-                reference_coordinate=self.get_reference_coordinate(original_coordinate_center),
+                reference_coordinate=transform_coordinates([original_coordinate_center], self.inverse_homography_matrix)[0],
                 height_meters=0,
                 horizontal_velocity=0,
                 vertical_velocity=0,
@@ -420,21 +338,21 @@ class ReferenceCourt:
             self.reference_frames[frame_number].ball.horizontal_velocity = calculated_horizontal_velocities[j]
 
     def _move_player_box_down(self, player_box: BoundingBox) -> BoundingBox:
-        reference_top_left = self.get_reference_coordinate((player_box.x1, player_box.y1))
-        reference_bottom_right = self.get_reference_coordinate((player_box.x2, player_box.y2))
+        reference_top_left = transform_coordinates([(player_box.x1, player_box.y1)], self.inverse_homography_matrix)[0]
+        reference_bottom_right = transform_coordinates([(player_box.x2, player_box.y2)], self.inverse_homography_matrix)[0]
         reference_top_left = (reference_top_left[0], round(reference_top_left[1] + player_box.width_height_ratio * REFERENCE_COURT_PIXEL_TO_METER_RATIO))
         reference_bottom_right = (reference_bottom_right[0], round(reference_bottom_right[1] + player_box.width_height_ratio * REFERENCE_COURT_PIXEL_TO_METER_RATIO))
-        x1, y1 = self.get_original_coordinate(reference_top_left)
-        x2, y2 = self.get_original_coordinate(reference_bottom_right)
+        x1, y1 = transform_coordinates([reference_top_left], self.homography_matrix)[0]
+        x2, y2 = transform_coordinates([reference_bottom_right], self.homography_matrix)[0]
         return BoundingBox(x1, y1, x2, y2)
 
     def _move_player_box_up(self, player_box: BoundingBox) -> BoundingBox:
-        reference_top_left = self.get_reference_coordinate((player_box.x1, player_box.y1))
-        reference_bottom_right = self.get_reference_coordinate((player_box.x2, player_box.y2))
+        reference_top_left = transform_coordinates([(player_box.x1, player_box.y1)], self.inverse_homography_matrix)[0]
+        reference_bottom_right = transform_coordinates([(player_box.x2, player_box.y2)], self.inverse_homography_matrix)[0]
         reference_top_left = (reference_top_left[0], round(reference_top_left[1] - player_box.width_height_ratio * REFERENCE_COURT_PIXEL_TO_METER_RATIO))
         reference_bottom_right = (reference_bottom_right[0], round(reference_bottom_right[1] - player_box.width_height_ratio * REFERENCE_COURT_PIXEL_TO_METER_RATIO))
-        x1, y1 = self.get_original_coordinate(reference_top_left)
-        x2, y2 = self.get_original_coordinate(reference_bottom_right)
+        x1, y1 = transform_coordinates([reference_top_left], self.homography_matrix)[0]
+        x2, y2 = transform_coordinates([reference_bottom_right], self.homography_matrix)[0]
         return BoundingBox(x1, y1, x2, y2)
 
     def _get_player_height(self, player_box: BoundingBox) -> float:
@@ -450,11 +368,11 @@ class ReferenceCourt:
         Since we know the width of the doubles line in meters, we can calculate the player width in meters.
         Using the player width in meters and the player bounding box, we can calculate the player height in meters.
         """
-        top_base_line_width = self.homographied_keypoints[1][0] - self.homographied_keypoints[0][0]
-        bottom_base_line_width = self.homographied_keypoints[3][0] - self.homographied_keypoints[2][0]
+        top_base_line_width = self.court_keypoints[1][0] - self.court_keypoints[0][0]
+        bottom_base_line_width = self.court_keypoints[3][0] - self.court_keypoints[2][0]
         base_line_diff = bottom_base_line_width - top_base_line_width
-        court_height = self.homographied_keypoints[2][1] - self.homographied_keypoints[0][1]
-        player_to_top_base_line = player_box.y2 - self.homographied_keypoints[0][1]
+        court_height = self.court_keypoints[2][1] - self.court_keypoints[0][1]
+        player_to_top_base_line = player_box.y2 - self.court_keypoints[0][1]
         player_line_width = (player_to_top_base_line / court_height) * base_line_diff + top_base_line_width
         player_width_meters = (player_box.width / player_line_width) * DOUBLES_LINE_WIDTH
         player_height_meters = round((player_box.height / player_box.width) * player_width_meters, 2)
@@ -520,14 +438,14 @@ class ReferenceCourt:
         net_clearance = 0
         balls.sort(key=lambda ball: ball.reference_coordinate[1])
         for i in range(len(balls)):
-            if balls[i].reference_coordinate[1] < self.canvas_depth / 2:
+            if balls[i].reference_coordinate[1] < REFERENCE_COURT_CANVAS_DEPTH / 2:
                 continue
-            if balls[i].reference_coordinate[1] == self.canvas_depth / 2:
+            if balls[i].reference_coordinate[1] == REFERENCE_COURT_CANVAS_DEPTH / 2:
                 net_clearance = balls[i].height_meters
                 break
             ball_1 = balls[i - 1]
             ball_2 = balls[i]
-            y_ratio = (ball_2.reference_coordinate[1] - self.canvas_depth / 2) / (ball_2.reference_coordinate[1] - ball_1.reference_coordinate[1])
+            y_ratio = (ball_2.reference_coordinate[1] - REFERENCE_COURT_CANVAS_DEPTH / 2) / (ball_2.reference_coordinate[1] - ball_1.reference_coordinate[1])
             ball_height_diff = ball_2.height_meters - ball_1.height_meters
             net_clearance = round(ball_2.height_meters - ball_height_diff * y_ratio, 2)
             break
@@ -549,14 +467,14 @@ class ReferenceCourt:
         coordinates = copy.deepcopy(calculated_coordinates)
         coordinates.sort(key=lambda x: x[1])
         for i in range(len(coordinates)):
-            if coordinates[i][1] < self.canvas_depth / 2:
+            if coordinates[i][1] < REFERENCE_COURT_CANVAS_DEPTH / 2:
                 continue
-            if coordinates[i][1] == self.canvas_depth / 2:
+            if coordinates[i][1] == REFERENCE_COURT_CANVAS_DEPTH / 2:
                 print(f'Ball is on the net: {coordinates[i][2]} m')
                 return
             coordinate1 = coordinates[i - 1]
             coordinate2 = coordinates[i]
-            y_ratio = (coordinate2[1] - self.canvas_depth / 2) / (coordinate2[1] - coordinate1[1])
+            y_ratio = (coordinate2[1] - REFERENCE_COURT_CANVAS_DEPTH / 2) / (coordinate2[1] - coordinate1[1])
             ball_height_diff = coordinate2[2] - coordinate1[2]
             ball_height_at_net = coordinate2[2] - ball_height_diff * y_ratio
             print(f'Net clearance: {round(ball_height_at_net, 2)} m')
@@ -630,36 +548,32 @@ class ReferenceCourt:
         return output_frames
 
     def _draw_player_coordinates(self, frame: np.ndarray, reference_frame: ReferenceFrame) -> None:
+        frame_width = frame.shape[1]
+        canvas_x1 = frame_width - REFERENCE_COURT_CANVAS_WIDTH - REFERENCE_COURT_MARGIN_X
+        canvas_y1 = REFERENCE_COURT_MARGIN_Y
+        canvas_y2 = REFERENCE_COURT_MARGIN_Y + REFERENCE_COURT_CANVAS_DEPTH
         color_red = (0, 0, 255)
         color_blue = (255, 0, 0)
-        x = int(reference_frame.near_player.reference_coordinate[0] + self.canvas_x1)
-        y = int(reference_frame.near_player.reference_coordinate[1] + self.canvas_y1)
+        x = int(reference_frame.near_player.reference_coordinate[0] + canvas_x1)
+        y = int(reference_frame.near_player.reference_coordinate[1] + canvas_y1)
         cv2.circle(frame, (x, y), 10, color_red, -1)
-        cv2.putText(frame, f"{reference_frame.near_player.player_id}", (self.canvas_x1 + 10, self.canvas_y2 - 15), 
+        cv2.putText(frame, f"{reference_frame.near_player.player_id}", (canvas_x1 + 10, canvas_y2 - 15), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_red, 2, cv2.LINE_AA)
 
-        x = int(reference_frame.far_player.reference_coordinate[0] + self.canvas_x1)
-        y = int(reference_frame.far_player.reference_coordinate[1] + self.canvas_y1)
+        x = int(reference_frame.far_player.reference_coordinate[0] + canvas_x1)
+        y = int(reference_frame.far_player.reference_coordinate[1] + canvas_y1)
         cv2.circle(frame, (x, y), 10, color_blue, -1)
-        cv2.putText(frame, f"{reference_frame.far_player.player_id}", (self.canvas_x1 + 10, self.canvas_y1 + 25), 
+        cv2.putText(frame, f"{reference_frame.far_player.player_id}", (canvas_x1 + 10, canvas_y1 + 25), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_blue, 2, cv2.LINE_AA)
 
-    def _draw_ball_coordinates(self, 
-                        frame: np.ndarray, 
-                        ball: ReferenceBall) -> None:
-        """
-        Draw coordinates on the frame.
-        
-        Args:
-            frame: Frame to draw on
-            coordinate: x-y values
-            size: Size of the circle
-            color: Color of the circle
-        """
+    def _draw_ball_coordinates(self, frame: np.ndarray, ball: ReferenceBall) -> None:
+        frame_width = frame.shape[1]
+        canvas_x1 = frame_width - REFERENCE_COURT_CANVAS_WIDTH - REFERENCE_COURT_MARGIN_X
+        canvas_y1 = REFERENCE_COURT_MARGIN_Y
         color_green = (0, 255, 0)
         color_black = (0, 0, 0)
-        x = int(ball.reference_coordinate[0] + self.canvas_x1)
-        y = int(ball.reference_coordinate[1] + self.canvas_y1)
+        x = int(ball.reference_coordinate[0] + canvas_x1)
+        y = int(ball.reference_coordinate[1] + canvas_y1)
         cv2.circle(frame, (x, y), 5, color_green, -1)
 
         cv2.putText(
@@ -672,68 +586,59 @@ class ReferenceCourt:
         )
 
     def _draw_court(self, frame: np.ndarray) -> np.ndarray:
-        """
-        Draw court lines and key points on the frame.
-        
-        Args:
-            frame: Frame to draw on
-            
-        Returns:
-            Frame with court lines and key points
-        """
+        frame_width = frame.shape[1]
+        canvas_x1 = frame_width - REFERENCE_COURT_CANVAS_WIDTH - REFERENCE_COURT_MARGIN_X
+        canvas_y1 = REFERENCE_COURT_MARGIN_Y
+        canvas_y2 = REFERENCE_COURT_MARGIN_Y + REFERENCE_COURT_CANVAS_DEPTH
         # Draw lines
-        for line in self.court_lines:
-            x1 = int(self.keypoints[line[0]][0] + self.canvas_x1)
-            y1 = int(self.keypoints[line[0]][1] + self.canvas_y1)
-            x2 = int(self.keypoints[line[1]][0] + self.canvas_x1)
-            y2 = int(self.keypoints[line[1]][1] + self.canvas_y1)
+        for line in REFERENCE_COURT_LINES:
+            x1 = int(REFERENCE_KEYPOINTS[line[0]][0] + canvas_x1)
+            y1 = int(REFERENCE_KEYPOINTS[line[0]][1] + canvas_y1)
+            x2 = int(REFERENCE_KEYPOINTS[line[1]][0] + canvas_x1)
+            y2 = int(REFERENCE_KEYPOINTS[line[1]][1] + canvas_y1)
             cv2.line(frame, (x1, y1), (x2, y2), (0, 0, 0), 2)
 
         # Draw center line
-        center_x = int((self.keypoints[0][0] + self.keypoints[1][0]) / 2 + self.canvas_x1)
+        center_x = int((REFERENCE_KEYPOINTS[0][0] + REFERENCE_KEYPOINTS[1][0]) / 2 + canvas_x1)
         
         # Top center line
-        top_y1 = int(self.keypoints[0][1] + self.canvas_y1)
+        top_y1 = int(REFERENCE_KEYPOINTS[0][1] + canvas_y1)
         top_y2 = int(top_y1 + CENTER_LINE_DEPTH * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
         cv2.line(frame, (center_x, top_y1), (center_x, top_y2), (0, 0, 0), 2)
         
         # Bottom center line
-        bottom_y1 = int(self.keypoints[2][1] + self.canvas_y1)
+        bottom_y1 = int(REFERENCE_KEYPOINTS[2][1] + canvas_y1)
         bottom_y2 = int(bottom_y1 - CENTER_LINE_DEPTH * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
         cv2.line(frame, (center_x, bottom_y1), (center_x, bottom_y2), (0, 0, 0), 2)
 
         # Draw net
-        net_x1 = int(self.court_x1 + self.canvas_x1)
-        net_x2 = int(self.court_x2 + self.canvas_x1)
-        net_y = int((self.canvas_y1 + self.canvas_y2) / 2)
+        net_x1 = int(REFERENCE_COURT_X1 + canvas_x1)
+        net_x2 = int(REFERENCE_COURT_X2 + canvas_x1)
+        net_y = int((canvas_y1 + canvas_y2) / 2)
         cv2.line(frame, (net_x1, net_y), (net_x2, net_y), (255, 0, 0), 2)
 
         # Draw key points
-        for keypoint in self.keypoints:
-            x = int(keypoint[0] + self.canvas_x1)
-            y = int(keypoint[1] + self.canvas_y1)
+        for keypoint in REFERENCE_KEYPOINTS:
+            x = int(keypoint[0] + canvas_x1)
+            y = int(keypoint[1] + canvas_y1)
             cv2.circle(frame, (x, y), 5, (0, 255, 255), -1)
 
         return frame
 
     def _draw_canvas(self, frame: np.ndarray) -> np.ndarray:
-        """
-        Draw a semi-transparent canvas on the frame.
-        
-        Args:
-            frame: Frame to draw on
-            
-        Returns:
-            Frame with canvas
-        """
+        frame_width = frame.shape[1]
+        canvas_x1 = frame_width - REFERENCE_COURT_MARGIN_X - REFERENCE_COURT_CANVAS_WIDTH
+        canvas_x2 = frame_width - REFERENCE_COURT_MARGIN_X
+        canvas_y1 = REFERENCE_COURT_MARGIN_Y
+        canvas_y2 = REFERENCE_COURT_MARGIN_Y + REFERENCE_COURT_CANVAS_DEPTH
         # Create a blank image with the same size as the input frame
         shapes = np.zeros_like(frame, np.uint8)
         
         # Draw a filled white rectangle for the canvas
         cv2.rectangle(
             shapes, 
-            (int(self.canvas_x1), int(self.canvas_y1)), 
-            (int(self.canvas_x2), int(self.canvas_y2)), 
+            (int(canvas_x1), int(canvas_y1)), 
+            (int(canvas_x2), int(canvas_y2)), 
             (255, 255, 255), 
             cv2.FILLED
         )

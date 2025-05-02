@@ -18,60 +18,59 @@ def main():
     input_frames, fps = read_video(INPUT_VIDEO_PATH)
     fps = round(fps)
 
-    DETECT_PERSON_POSITIONS     = False
-    DETECT_BALL_POSITIONS       = False
-    SYNTHESIZE_BALL_POSITIONS   = False
-    FIND_BALL_HITS_AND_BOUNCES  = False
-    DETECT_PLAYER_POSITIONS     = True
-    COLLECT_PLAYER_STATS        = True
-    DRAW_FRAMES                 = True
+    DETECT_PERSON_POSITIONS         = False
+    DETECT_BALL_POSITIONS           = False
+    SYNTHESIZE_BALL_POSITIONS       = False
+    FIND_BALL_HITS_AND_BOUNCES      = False
+    DETECT_KEYPOINTS                = False
+    FIND_PLAYER_POSITIONS           = False
+    COMPUTE_REFERENCE_COORDINATES   = True
+    COLLECT_PLAYER_STATS            = True
+    DRAW_FRAMES                     = True
 
     if DETECT_PERSON_POSITIONS:
-        print('Processing player tracker...')
+        print('Detecting person positions...')
         PlayerTracker().dectect_person_positions(input_frames, PLAYER_TRACKER_MODEL_PATH)
 
     if DETECT_BALL_POSITIONS:
-        print('Processing ball tracker...')
+        print('Detecting ball positions...')
         BallTracker().detect_ball_positions(input_frames, BALL_TRACKER_MODEL_PATH)
 
     if SYNTHESIZE_BALL_POSITIONS:
-        print('Synthesize ball positions...')
+        print('Synthesizing ball positions...')
         BallTracker().synthesize_ball_positions()
 
     if FIND_BALL_HITS_AND_BOUNCES:
-        print('Find ball hits and bounces...')
+        print('Finding ball hits and bounces...')
         BallAnalyser().find_ball_hits_and_bounces(fps, BallTracker().load_ball_positions_df())
 
-    print('Processing court line detector...')
-    court_line_detector = CourtLineDetector()
-    court_line_detector.predict_keypoints(input_frames[0], COURT_LINE_DETECTOR_MODEL_PATH)
-    court_line_detector.refine_predicted_keypoints(input_frames[0])
-    reference_court = ReferenceCourt(input_frames[0].shape[1], input_frames[0].shape[0])
-    homographied_keypoints = reference_court.homograph_keypoints(court_line_detector.refined_predicted_keypoints)
-    court_line_detector.refine_homographied_keypoints(input_frames[0], homographied_keypoints)
-    court_keypoints = reference_court.homograph_keypoints(court_line_detector.refined_homographied_keypoints)
-    court_line_detector.set_court_keypoints(court_keypoints)
+    if DETECT_KEYPOINTS:
+        print('Detecting keypoints...')
+        CourtLineDetector().detect_keypoints(input_frames[0], COURT_LINE_DETECTOR_MODEL_PATH)
 
-    if DETECT_PLAYER_POSITIONS:
-        print('Processing player positions...')
-        PlayerTracker().detect_player_positions(CourtLineDetector().load_court_keypoints())
+    if FIND_PLAYER_POSITIONS:
+        print('Finding player positions...')
+        PlayerTracker().find_player_positions(CourtLineDetector().load_court_keypoints())
 
-    reference_court.compute_reference_coordinates(
-        *PlayerTracker().load_player_positions(), 
-        BallTracker().load_complete_ball_positions(), 
-        BallAnalyser().load_ball_hits_and_bounces(),
-        fps)
+    if COMPUTE_REFERENCE_COORDINATES:
+        print('Computing reference coordinates...')
+        ReferenceCourt().compute_reference_coordinates(
+            CourtLineDetector().load_court_keypoints(),
+            *PlayerTracker().load_player_positions(), 
+            BallTracker().load_complete_ball_positions(), 
+            BallAnalyser().load_ball_hits_and_bounces(),
+            fps)
     
     if COLLECT_PLAYER_STATS:
-        print('Processing player stats...')
-        PlayerStats().collect_stats(ReferenceCourt(input_frames[0].shape[1], input_frames[0].shape[0]).load_reference_frames())
+        print('Collecting player stats...')
+        PlayerStats().collect_stats(ReferenceCourt().load_reference_frames())
     
     if DRAW_FRAMES:
         print('Drawing player, ball, keypoints, reference court and player stats on the video...')
         output_frames = PlayerTracker().draw(input_frames)
         output_frames = BallTracker().draw(output_frames)
-        output_frames = court_line_detector.draw(output_frames)
-        output_frames = ReferenceCourt(input_frames[0].shape[1], input_frames[0].shape[0]).draw(output_frames)
+        output_frames = CourtLineDetector().draw(output_frames)
+        output_frames = ReferenceCourt().draw(output_frames)
         output_frames = PlayerStats().draw(output_frames)
 
         print('Draw frame number at the top left corner of the frame...')

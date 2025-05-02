@@ -56,7 +56,7 @@ class PlayerTracker:
         with open(self.stub_path, 'rb') as f:
             return pickle.load(f)
 
-    def detect_player_positions(self, court_keypoints):
+    def find_player_positions(self, court_keypoints):
         person_positions = self._load_person_positions_from_stub()
         person_positions_first_frame = person_positions[0]
         near_player_id, far_player_id = self._choose_players(court_keypoints, person_positions_first_frame)

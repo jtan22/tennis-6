@@ -381,15 +381,14 @@ class BallTracker:
                 
                 # Add velocity information
                 velocity = df.loc[i, 'velocity']
-                cv2.putText(
-                    frame_copy, f"V: {velocity:.1f}", (box.x2 + 10, box.y1),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
-                )
-                    
                 # Add position information
                 x, y = df.loc[i, 'x'], df.loc[i, 'y']
                 cv2.putText(
-                    frame_copy, f"({x}, {y})", (box.x2 + 10, box.y1 + 25),
+                    frame_copy, f"({x}, {y})", (box.x2 + 10, box.y1 + 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
+                )
+                cv2.putText(
+                    frame_copy, f"v: {velocity:.1f}", (box.x2 + 10, box.y1 + 25),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA
                 )
                         
