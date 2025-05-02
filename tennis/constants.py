@@ -53,3 +53,26 @@ PLAYER_UNKNOWN = -1
 PLAYER_RUNNING = 0
 PLAYER_HITTING = 1
 
+# 0-4---------6-1
+# | |         | |
+# | |         | |
+# | 8----C----9 |
+# | |    |    | |
+# | |    |    | |
+# +-+----+----+-+
+# | |    |    | |
+# | |    |    | |
+# | A----D----B |
+# | |         | |
+# | |         | |
+# 2-5---------7-3
+COURT_HOMOGRAPHY_CONFIGURATIONS = [
+    [0, 1, 2, 3],    # doubles court
+    [0, 6, 2, 7],    # right doubles alley plus singles court
+    [4, 1, 5, 3],    # left doubles alley plus singles court
+    [4, 6, 5, 7],    # singles court
+    [0, 4, 2, 5],    # right doubles alley
+    [6, 1, 7, 3],    # left doubles alley
+    [4, 6, 10, 11],  # top no mans land plus mini court
+    [10, 11, 5, 7]   # bottom no mans land
+]

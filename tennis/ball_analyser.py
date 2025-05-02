@@ -12,9 +12,9 @@ class BallAnalyser:
     """
 
     def __init__(self):
-        pass
+        self.hits_nad_bounces_path = 'analysis/hits_and_bounces.csv'
 
-    def find_ball_hits_and_bounces(self, fps: int, df: pd.DataFrame) -> List[int]:
+    def find_ball_hits_and_bounces(self, fps: int, df: pd.DataFrame) -> None:
         # Signed velocity (positive when moving down, negative when moving up)
         df['velocity_vector'] = np.where(
             df['y_diff'] >= 0,
@@ -51,7 +51,16 @@ class BallAnalyser:
         far_hits = self._find_far_hits(df, near_hits)
         
         # Process event relationships
-        return self._sort_hits_and_bounces(near_hits, near_bounces, far_hits, far_bounces)
+        df = pd.DataFrame({
+            'hits_and_bounces': self._sort_hits_and_bounces(near_hits, near_bounces, far_hits, far_bounces)
+        })
+        df.to_csv(self.hits_nad_bounces_path, index=False)
+
+    def load_ball_hits_and_bounces(self) -> List[int | None]:
+        df = pd.read_csv(self.hits_nad_bounces_path)
+        hits_and_bounces = [int(x) if pd.notna(x) else None for x in df['hits_and_bounces'].tolist()]
+        print(f'hits_and_bounces: {hits_and_bounces}')
+        return hits_and_bounces
 
     def _find_near_hits(self, df: pd.DataFrame) -> List[int]:
         """

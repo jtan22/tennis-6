@@ -1,6 +1,8 @@
 import cv2
 from shapely.geometry import Point, LineString
 import math
+import numpy as np
+from scipy.spatial import distance
 from typing import List, Tuple
 from collections import deque
 from .constants import (
@@ -9,6 +11,7 @@ from .constants import (
     DEFAULT_VERTICAL_VELOCITY,
     BALL_MASS,
     BALL_DRAG_FACTOR,
+    COURT_HOMOGRAPHY_CONFIGURATIONS,
 )
 
 def read_video(video_path):
@@ -55,6 +58,50 @@ def get_distance_between_point_and_line(point: Tuple[int, int], line_start: Tupl
     line_sh = LineString([line_start, line_end])
     distance_infinite_sh = point_sh.distance(line_sh)
     return distance_infinite_sh
+
+def get_homography_matrix(standard_keypoints: List[Tuple[int, int]], image_keypoints: List[Tuple[int, int]]) -> np.ndarray:
+    homography_matrix = None
+    distance_min = np.inf
+    # Turn 2D keypoints into 3D, (14, 2) to (14, 1, 2)
+    reference_keypoints = np.array(standard_keypoints, dtype=np.float32).reshape((-1, 1, 2))
+    
+    # Try each homography configuration to find the best one
+    for homography_configuration in COURT_HOMOGRAPHY_CONFIGURATIONS:
+        # The 4 standard keypoints
+        standard_configuration = [standard_keypoints[i] for i in homography_configuration]
+        # The 4 image keypoints
+        image_configuration = [image_keypoints[i] for i in homography_configuration]
+        # Skip if any keypoint is missing
+        if any(point is None for point in image_configuration):
+            continue
+        # Calculate homography matrix
+        matrix, _ = cv2.findHomography(np.float32(standard_configuration), np.float32(image_configuration), method=cv2.RANSAC) # type: ignore        
+        # Apply homography to all reference keypoints
+        transformed_keypoints = cv2.perspectiveTransform(reference_keypoints, matrix)
+        # Calculate error for non-used keypoints
+        distances = []
+        for i in range(len(standard_keypoints)):
+            if i not in homography_configuration and image_keypoints[i] is not None:
+                distances.append(distance.euclidean(image_keypoints[i], transformed_keypoints[i][0]))
+        
+        # If no distances to compare, skip this configuration
+        if not distances:
+            continue
+            
+        distance_mean = np.mean(distances)
+        if distance_mean < distance_min:
+            homography_matrix = matrix
+            distance_min = distance_mean
+    
+    if homography_matrix is None:
+        raise ValueError("Could not find valid homography matrix with given keypoints")
+
+    return homography_matrix        
+
+def perspective_transform_coordinates(coordinates: List[Tuple[int, int]], homography_matrix: np.ndarray) -> List[Tuple[int, int]]:
+    coordinates_3d = np.array(coordinates, dtype=np.float32).reshape((-1, 1, 2))
+    best_keypoints = cv2.perspectiveTransform(coordinates_3d, homography_matrix)
+    return [(int(x), int(y)) for x, y in best_keypoints.reshape(-1, 2)]
 
 # U0 = (Vt^2)*(e^(g*x/Vt^2) - 1)/(g*t)
 def get_initial_horizontal_velocity(distance: float, time: float) -> float:

@@ -8,7 +8,10 @@ from .constants import PLAYER_HITTING, PLAYER_STATS_MARGIN_X, PLAYER_STATS_MARGI
 from tennis.utils import get_distance_between_points
 
 class PlayerStats():
+
     def __init__(self):
+        self.player_stats_path = 'analysis/player_stats.csv'
+
         self.canvas_height = int(PLAYER_STATS_WIDTH / 2)
         self.canvas_x1 = PLAYER_STATS_MARGIN_X
         self.canvas_y1 = PLAYER_STATS_MARGIN_Y
@@ -19,7 +22,7 @@ class PlayerStats():
         """
         Collects player stats from the mini court coordinates and ball shot frame numbers.
         """
-        self.player_stats_data = [{
+        player_stats_data = [{
             'frame_num':0,
             'player_1_last_player_distance':0.0,
             'player_1_total_player_distance':0.0,
@@ -34,7 +37,7 @@ class PlayerStats():
         }]
 
         for i in range(1, len(reference_frames)):
-            player_stats = deepcopy(self.player_stats_data[-1])
+            player_stats = deepcopy(player_stats_data[-1])
             player_stats['frame_num'] = i
             player_1_distance_pixels = get_distance_between_points(
                 reference_frames[i].near_player.reference_coordinate, 
@@ -64,15 +67,16 @@ class PlayerStats():
                     velocity_km_per_hour = round(velocity_meters_per_second * 3.6, 2)
                     player_stats[f'player_2_last_shot_speed'] = velocity_km_per_hour
                     player_stats[f'player_2_total_shot_speed'] += velocity_km_per_hour
-            self.player_stats_data.append(player_stats)
+            player_stats_data.append(player_stats)
 
-        df = pd.DataFrame(self.player_stats_data)
-        df.to_csv('player_stats.csv', index=False)
-        print("Player stats collected and saved to player_stats.csv")
+        df = pd.DataFrame(player_stats_data)
+        df.to_csv(self.player_stats_path, index=False)
     
     def draw(self, input_frames):
+        df = pd.read_csv(self.player_stats_path)
+        player_stats_data = df.to_dict(orient='records')
         output_frames = []
-        for index, per_frame_data in enumerate(self.player_stats_data):
+        for index, per_frame_data in enumerate(player_stats_data):
             frame = input_frames[index]
             overlay = frame.copy()
             cv2.rectangle(overlay, (self.canvas_x1, self.canvas_y1), (self.canvas_x2, self.canvas_y2), (0, 0, 0), -1)
