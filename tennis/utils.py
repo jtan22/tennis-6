@@ -1,13 +1,13 @@
 import cv2
-from shapely.geometry import Point, LineString
 import math
 import numpy as np
 import sympy
+import logging
+from shapely.geometry import Point, LineString
 from sympy import Line
 from scipy.spatial import distance
 from typing import List, Tuple, Optional
 from collections import deque
-import logging
 from .constants import (
     GRAVITY, 
     BALL_TERMINAL_VELOCITY_SQUARED, 
@@ -21,10 +21,10 @@ from .constants import (
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def read_video(video_path):
+def read_video(video_path: str) -> Tuple[List[np.ndarray], int]:
     # Read a video file and return its frames as a list of numpy arrays
     video_capture = cv2.VideoCapture(video_path)
-    fps = video_capture.get(cv2.CAP_PROP_FPS)
+    fps = round(video_capture.get(cv2.CAP_PROP_FPS))
     frames = []
     while True:
         ret, frame = video_capture.read()
@@ -34,7 +34,7 @@ def read_video(video_path):
     video_capture.release()
     return frames, fps
 
-def save_video(video_frames, fps, video_path):
+def save_video(video_frames: List[np.ndarray], fps: int, video_path: str) -> None:
     # Get 4-character code for MJPG codec
     fourcc = cv2.VideoWriter_fourcc(*'MJPG') # type: ignore
     frame_size = (video_frames[0].shape[1], video_frames[0].shape[0])
@@ -42,12 +42,6 @@ def save_video(video_frames, fps, video_path):
     for frame in video_frames:
         out.write(frame)
     out.release()
-
-def get_bounding_box_center_point(bounding_box: Tuple[int, int, int, int]) -> Tuple[int, int]:
-    x1, y1, x2, y2 = bounding_box
-    center_x = (x1 + x2) / 2
-    center_y = (y1 + y2) / 2
-    return (int(center_x), int(center_y))
 
 def get_bottom_line_center_point(bounding_box: Tuple[int, int, int, int]) -> Tuple[int, int]:
     x1, y1, x2, y2 = bounding_box
@@ -150,7 +144,8 @@ def get_homography_matrix(standard_keypoints: List[Tuple[int, int]], image_keypo
         if any(point is None for point in image_configuration):
             continue
         # Calculate homography matrix
-        matrix, _ = cv2.findHomography(np.float32(standard_configuration), np.float32(image_configuration), method=cv2.RANSAC) # type: ignore        
+        matrix, _ = cv2.findHomography(
+            np.float32(standard_configuration), np.float32(image_configuration), method=cv2.RANSAC) # type: ignore        
         # Apply homography to all reference keypoints
         transformed_keypoints = cv2.perspectiveTransform(reference_keypoints, matrix)
         # Calculate error for non-used keypoints
@@ -175,12 +170,16 @@ def get_homography_matrix(standard_keypoints: List[Tuple[int, int]], image_keypo
 
 def transform_coordinates(coordinates: List[Tuple[int, int]], homography_matrix: np.ndarray) -> List[Tuple[int, int]]:
     coordinates_3d = np.array(coordinates, dtype=np.float32).reshape((-1, 1, 2))
-    best_keypoints = cv2.perspectiveTransform(coordinates_3d, homography_matrix)
-    return [(int(x), int(y)) for x, y in best_keypoints.reshape(-1, 2)]
+    transformed_coordinates = cv2.perspectiveTransform(coordinates_3d, homography_matrix)
+    return [(int(x), int(y)) for x, y in transformed_coordinates.reshape(-1, 2)]
 
 # U0 = (Vt^2)*(e^(g*x/Vt^2) - 1)/(g*t)
 def get_initial_horizontal_velocity(distance: float, time: float) -> float:
-    return BALL_TERMINAL_VELOCITY_SQUARED * (math.e ** (distance * GRAVITY / BALL_TERMINAL_VELOCITY_SQUARED) - 1) / (GRAVITY * time)
+    print(f'Distance: {distance}, time: {time}')
+    v0 = BALL_TERMINAL_VELOCITY_SQUARED * (math.e ** (distance * GRAVITY / BALL_TERMINAL_VELOCITY_SQUARED) - 1) / (GRAVITY * time)
+    print(f'Initial horizontal velocity: {v0}')
+    print(f'Initial horizontal velocity without drag: {distance / time}')
+    return v0
 
 # x = (Vt^2/g)*ln((Vt^2+g*U0*t)/Vt^2) = (Vt^2/g)*ln(1+g*U0*t/Vt^2)
 def get_horizontal_distance_by_time(initial_velocity: float, time: float) -> float:
@@ -190,29 +189,8 @@ def get_horizontal_distance_by_time(initial_velocity: float, time: float) -> flo
 def get_horizontal_velocity_by_time(initial_velocity: float, time: float) -> float:
     return (BALL_TERMINAL_VELOCITY_SQUARED * initial_velocity) / (BALL_TERMINAL_VELOCITY_SQUARED + GRAVITY * initial_velocity * time)
 
-# Upward acceleration:   -g - (rho * Cd * A * v**2) / (2 * m)
-# Downward acceleration: -g + (rho * Cd * A * v**2) / (2 * m) 
-def simulate_vertical_motion_hit(v0: float, h_initial: float) -> float:
-    dt = 0.001  # Time step
-    t = 0
-    y = h_initial
-    v = v0
-    
-    # Upward motion
-    while v > 0:
-        v = v + dt * (-GRAVITY - (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
-        y = y + v * dt
-        t += dt
-    
-    # Downward motion
-    while y > 0:
-        v = v + dt * (-GRAVITY + (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
-        y = y + v * dt
-        t += dt
-    
-    return t
-
 def get_initial_vertical_velocity_hit(initial_height: float, total_seconds: float) -> float:
+    print(f'Hit initial height: {initial_height}, total seconds: {total_seconds}')
     # Initial guess for v0
     v0_guess = DEFAULT_VERTICAL_VELOCITY
 
@@ -244,8 +222,31 @@ def get_initial_vertical_velocity_hit(initial_height: float, total_seconds: floa
             v0_guess += adjustment  # Increase v0
         else:
             v0_guess -= adjustment  # Decrease v0
-    
+    print(f'Hit initial vertical velocity: {v0_guess}')
+    print(f'Hit initial vertical velocity without drag: {(GRAVITY * total_seconds / 2) - (initial_height / total_seconds)}')
     return v0_guess
+
+# Upward acceleration:   -g - (rho * Cd * A * v**2) / (2 * m)
+# Downward acceleration: -g + (rho * Cd * A * v**2) / (2 * m) 
+def simulate_vertical_motion_hit(v0: float, h_initial: float) -> float:
+    dt = 0.001  # Time step
+    t = 0
+    y = h_initial
+    v = v0
+    
+    # Upward motion
+    while v > 0:
+        v = v + dt * (-GRAVITY - (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
+        y = y + v * dt
+        t += dt
+    
+    # Downward motion
+    while y > 0:
+        v = v + dt * (-GRAVITY + (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
+        y = y + v * dt
+        t += dt
+    
+    return t
 
 def calculate_time_adjustment(last_2_tf: deque[float], time_of_flight: float, total_seconds: float) -> float:
     if len(last_2_tf) < 2:
@@ -258,29 +259,8 @@ def calculate_time_adjustment(last_2_tf: deque[float], time_of_flight: float, to
     else:
         return 0.1
 
-# Upward acceleration:   -g - (rho * Cd * A * v**2) / (2 * m)
-# Downward acceleration: -g + (rho * Cd * A * v**2) / (2 * m) 
-def simulate_vertical_motion_bounce(v0: float, total_seconds: float) -> float:
-    dt = 0.001  # Time step
-    t = 0
-    y = 0
-    v = v0
-    
-    # Upward motion
-    while t < total_seconds and v > 0:
-        v = v + dt * (-GRAVITY - (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
-        y = y + v * dt
-        t += dt
-    
-    # Downward motion
-    while t < total_seconds and v <= 0:
-        v = v + dt * (-GRAVITY + (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
-        y = y + v * dt
-        t += dt
-    
-    return y
-
 def get_initial_vertical_velocity_bounce(final_height: float, total_seconds: float) -> float:
+    print(f'Bounce final height: {final_height}, total seconds: {total_seconds}')
     # Initial guess for v0
     v0_guess = DEFAULT_VERTICAL_VELOCITY
 
@@ -310,8 +290,31 @@ def get_initial_vertical_velocity_bounce(final_height: float, total_seconds: flo
             v0_guess += adjustment  # Increase v0
         else:
             v0_guess -= adjustment  # Decrease v0
-    
+    print(f'Bounce initial vertical velocity: {v0_guess}')
+    print(f'Bounce initial vertical velocity without drag: {(final_height / total_seconds) + (GRAVITY * total_seconds / 2)}')
     return v0_guess
+
+# Upward acceleration:   -g - (rho * Cd * A * v**2) / (2 * m)
+# Downward acceleration: -g + (rho * Cd * A * v**2) / (2 * m) 
+def simulate_vertical_motion_bounce(v0: float, total_seconds: float) -> float:
+    dt = 0.001  # Time step
+    t = 0
+    y = 0
+    v = v0
+    
+    # Upward motion
+    while t < total_seconds and v > 0:
+        v = v + dt * (-GRAVITY - (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
+        y = y + v * dt
+        t += dt
+    
+    # Downward motion
+    while t < total_seconds and v <= 0:
+        v = v + dt * (-GRAVITY + (BALL_DRAG_FACTOR * v**2) / (2 * BALL_MASS))
+        y = y + v * dt
+        t += dt
+    
+    return y
 
 def calculate_height_adjustment(last_2_hr: deque[float], height_reached: float, final_height: float) -> float:
     if len(last_2_hr) < 2:

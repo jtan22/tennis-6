@@ -12,7 +12,7 @@ class PlayerTracker:
         self.stub_path = 'tracker_stubs/player_detections.pkl'
         self.player_positions_path = 'analysis/player_positions.csv'
 
-    # Detect players in a list of frames
+    # Detect persons in a list of frames
     def dectect_person_positions(self, frames, model_path) -> None:
         model = YOLO(model_path)
         model.to(torch.device('mps' if torch.mps.is_available() else 'cuda' if torch.cuda.is_available else 'cpu'))
@@ -58,8 +58,7 @@ class PlayerTracker:
 
     def find_player_positions(self, court_keypoints):
         person_positions = self._load_person_positions_from_stub()
-        person_positions_first_frame = person_positions[0]
-        near_player_id, far_player_id = self._choose_players(court_keypoints, person_positions_first_frame)
+        near_player_id, far_player_id = self._choose_players(court_keypoints, person_positions[0])
         near_player_positions = []
         far_player_positions = []
         for person_positions_per_frame in person_positions:

@@ -27,17 +27,9 @@ class BallTracker:
         for i, frame in enumerate(frames):
             positions = self._detect_ball_positions_per_frame(frame, model)
             ball_positions.append(positions)
-            # Log progress for large videos
-            if i > 0 and i % 100 == 0:
-                print(f'Processed {i}/{len(frames)} frames')
 
-        try:
-            # Ensure directory exists
-            Path(self.stub_path).parent.mkdir(parents=True, exist_ok=True)            
-            with open(self.stub_path, 'wb') as f:
-                pickle.dump(ball_positions, f)
-        except IOError as e:
-            raise Error(f"Error saving stub file: {e}")
+        with open(self.stub_path, 'wb') as f:
+            pickle.dump(ball_positions, f)
 
     def _load_ball_positions_from_stub(self) -> List[Dict[int, Tuple[int, int, int, int]]]:
         try:

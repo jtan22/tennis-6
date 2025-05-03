@@ -26,7 +26,7 @@ def main():
     FIND_PLAYER_POSITIONS           = False
     COMPUTE_REFERENCE_COORDINATES   = True
     COLLECT_PLAYER_STATS            = True
-    DRAW_FRAMES                     = True
+    DRAW_FRAMES                     = False
 
     if DETECT_PERSON_POSITIONS:
         print('Detecting person positions...')
