@@ -62,14 +62,14 @@ class PlayerTracker:
         near_player_positions = []
         far_player_positions = []
         for person_positions_per_frame in person_positions:
-            near_player_positions_per_frame = {track_id: [int(x) for x in bounding_box]
+            near_player_position = [[int(x) for x in bounding_box]
                     for track_id, bounding_box in person_positions_per_frame.items() 
-                    if track_id == near_player_id}
-            near_player_positions.append(near_player_positions_per_frame)
-            far_player_positions_per_frame = {track_id: [int(x) for x in bounding_box]
+                    if track_id == near_player_id][0]
+            near_player_positions.append(near_player_position)
+            far_player_position = [[int(x) for x in bounding_box]
                     for track_id, bounding_box in person_positions_per_frame.items() 
-                    if track_id == far_player_id}
-            far_player_positions.append(far_player_positions_per_frame)
+                    if track_id == far_player_id][0]
+            far_player_positions.append(far_player_position)
 
         df = pd.DataFrame({
             'frame': range(len(near_player_positions)),
@@ -78,7 +78,7 @@ class PlayerTracker:
         })
         df.to_csv(self.player_positions_path, index=False)
 
-    def load_player_positions(self) -> Tuple[List[Dict[int, Tuple[int, int, int, int]]], List[Dict[int, Tuple[int, int, int, int]]]]:
+    def load_player_positions(self) -> Tuple[List[Tuple[int, int, int, int]], List[Tuple[int, int, int, int]]]:
         # Load player positions from CSV file
         df = pd.read_csv(self.player_positions_path)
         near_player_positions = df['near_player_position'].tolist()
@@ -122,11 +122,9 @@ class PlayerTracker:
         color_red = (0, 0, 255)
         color_blue = (255, 0, 0)
         for i, frame in enumerate(input_frames):
-            for track_id, bounding_box in near_player_positions[i].items():
-                x1, y1, x2, y2 = bounding_box
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color_red, 2)
-            for track_id, bounding_box in far_player_positions[i].items():
-                x1, y1, x2, y2 = bounding_box
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color_blue, 2)
+            x1, y1, x2, y2 = near_player_positions[i]
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color_red, 2)
+            x1, y1, x2, y2 = far_player_positions[i]
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color_blue, 2)
             output_frames.append(frame)
         return output_frames

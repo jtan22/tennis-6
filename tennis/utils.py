@@ -175,10 +175,7 @@ def transform_coordinates(coordinates: List[Tuple[int, int]], homography_matrix:
 
 # U0 = (Vt^2)*(e^(g*x/Vt^2) - 1)/(g*t)
 def get_initial_horizontal_velocity(distance: float, time: float) -> float:
-    print(f'Distance: {distance}, time: {time}')
     v0 = BALL_TERMINAL_VELOCITY_SQUARED * (math.e ** (distance * GRAVITY / BALL_TERMINAL_VELOCITY_SQUARED) - 1) / (GRAVITY * time)
-    print(f'Initial horizontal velocity: {v0}')
-    print(f'Initial horizontal velocity without drag: {distance / time}')
     return v0
 
 # x = (Vt^2/g)*ln((Vt^2+g*U0*t)/Vt^2) = (Vt^2/g)*ln(1+g*U0*t/Vt^2)
@@ -190,7 +187,6 @@ def get_horizontal_velocity_by_time(initial_velocity: float, time: float) -> flo
     return (BALL_TERMINAL_VELOCITY_SQUARED * initial_velocity) / (BALL_TERMINAL_VELOCITY_SQUARED + GRAVITY * initial_velocity * time)
 
 def get_initial_vertical_velocity_hit(initial_height: float, total_seconds: float) -> float:
-    print(f'Hit initial height: {initial_height}, total seconds: {total_seconds}')
     # Initial guess for v0
     v0_guess = DEFAULT_VERTICAL_VELOCITY
 
@@ -222,8 +218,6 @@ def get_initial_vertical_velocity_hit(initial_height: float, total_seconds: floa
             v0_guess += adjustment  # Increase v0
         else:
             v0_guess -= adjustment  # Decrease v0
-    print(f'Hit initial vertical velocity: {v0_guess}')
-    print(f'Hit initial vertical velocity without drag: {(GRAVITY * total_seconds / 2) - (initial_height / total_seconds)}')
     return v0_guess
 
 # Upward acceleration:   -g - (rho * Cd * A * v**2) / (2 * m)
@@ -260,7 +254,6 @@ def calculate_time_adjustment(last_2_tf: deque[float], time_of_flight: float, to
         return 0.1
 
 def get_initial_vertical_velocity_bounce(final_height: float, total_seconds: float) -> float:
-    print(f'Bounce final height: {final_height}, total seconds: {total_seconds}')
     # Initial guess for v0
     v0_guess = DEFAULT_VERTICAL_VELOCITY
 
@@ -290,8 +283,6 @@ def get_initial_vertical_velocity_bounce(final_height: float, total_seconds: flo
             v0_guess += adjustment  # Increase v0
         else:
             v0_guess -= adjustment  # Decrease v0
-    print(f'Bounce initial vertical velocity: {v0_guess}')
-    print(f'Bounce initial vertical velocity without drag: {(final_height / total_seconds) + (GRAVITY * total_seconds / 2)}')
     return v0_guess
 
 # Upward acceleration:   -g - (rho * Cd * A * v**2) / (2 * m)

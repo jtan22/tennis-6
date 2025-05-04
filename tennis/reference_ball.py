@@ -6,7 +6,6 @@ from tennis.bounding_box import BoundingBox
 @dataclass
 class ReferenceBall:
     """Representation of a reference ball with convenience methods."""
-    ball_id: int
     original_bounding_box: BoundingBox
     reference_coordinate: Tuple[int, int]
     height_meters: float
