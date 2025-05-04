@@ -443,34 +443,6 @@ class ReferenceCourt:
         print(f'Ball is on the net: {net_clearance} m')
         return net_clearance
 
-    def _get_net_clearance(self, calculated_coordinates: List[Tuple[int, int, float, float]]) -> None:
-        """
-        Calculate the net clearance for the ball trajectory.
-        
-        Args:
-            calculated_coordinates: List of calculated ball coordinates
-        """
-        if calculated_coordinates is None:
-            return
-        if len(calculated_coordinates[0]) == 2:
-            print('No net clearance, its a bounce and hit')
-            return
-        coordinates = copy.deepcopy(calculated_coordinates)
-        coordinates.sort(key=lambda x: x[1])
-        for i in range(len(coordinates)):
-            if coordinates[i][1] < REFERENCE_COURT_CANVAS_DEPTH / 2:
-                continue
-            if coordinates[i][1] == REFERENCE_COURT_CANVAS_DEPTH / 2:
-                print(f'Ball is on the net: {coordinates[i][2]} m')
-                return
-            coordinate1 = coordinates[i - 1]
-            coordinate2 = coordinates[i]
-            y_ratio = (coordinate2[1] - REFERENCE_COURT_CANVAS_DEPTH / 2) / (coordinate2[1] - coordinate1[1])
-            ball_height_diff = coordinate2[2] - coordinate1[2]
-            ball_height_at_net = coordinate2[2] - ball_height_diff * y_ratio
-            print(f'Net clearance: {round(ball_height_at_net, 2)} m')
-            break
-
     def load_reference_frames(self) -> List[ReferenceFrame]:
         """
         Load reference frames from the CSV file.

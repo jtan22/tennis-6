@@ -20,10 +20,10 @@ def main():
 
     DETECT_PERSON_POSITIONS         = False
     DETECT_BALL_POSITIONS           = False
-    SYNTHESIZE_BALL_POSITIONS       = True
-    FIND_BALL_HITS_AND_BOUNCES      = True
-    DETECT_KEYPOINTS                = True
-    FIND_PLAYER_POSITIONS           = True
+    SYNTHESIZE_BALL_POSITIONS       = False
+    FIND_BALL_HITS_AND_BOUNCES      = False
+    DETECT_KEYPOINTS                = False
+    FIND_PLAYER_POSITIONS           = False
     COMPUTE_REFERENCE_COORDINATES   = True
     COLLECT_PLAYER_STATS            = True
     DRAW_FRAMES                     = True
