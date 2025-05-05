@@ -1,8 +1,7 @@
 import cv2
 import numpy as np
-import copy
 import pandas as pd
-from typing import List, Dict, Tuple
+from typing import List, Tuple
 
 from tennis.bounding_box import BoundingBox
 from tennis.reference_frame import ReferenceFrame
@@ -23,7 +22,10 @@ from .utils import (
 )
 from .constants import (
     BALL_FAR_BOUNCE, 
-    DOUBLES_LINE_WIDTH, 
+    DOUBLES_LINE_WIDTH,
+    HALF_COURT_DEPTH,
+    NET_CENTRE_HEIGHT,
+    NO_MANS_LAND_DEPTH, 
     REFERENCE_COURT_PIXEL_TO_METER_RATIO,
     CENTER_LINE_DEPTH, 
     BALL_FAR_HIT, 
@@ -40,6 +42,9 @@ from .constants import (
     REFERENCE_COURT_MARGIN_X,
     REFERENCE_COURT_MARGIN_Y,
     REFERENCE_COURT_LINES,
+    RUN_BACK_DEPTH,
+    SERVICE_LINE_DEPTH,
+    SIDE_VIEW_COURT_CANVAS_HEIGHT,
     NEAR_PLAYER_NAME,
     FAR_PLAYER_NAME,
 )
@@ -95,9 +100,11 @@ class ReferenceCourt:
             'frame_number': [frame.frame_number for frame in self.reference_frames],
             'near_player_original_box': [frame.near_player.original_bounding_box for frame in self.reference_frames],
             'near_player_reference_point': [frame.near_player.reference_coordinate for frame in self.reference_frames],
+            'near_player_height_meters': [frame.near_player.height_meters for frame in self.reference_frames],
             'near_player_action': [frame.near_player.action for frame in self.reference_frames],
             'far_player_original_box': [frame.far_player.original_bounding_box for frame in self.reference_frames],
             'far_player_reference_point': [frame.far_player.reference_coordinate for frame in self.reference_frames],
+            'far_player_height_meters': [frame.far_player.height_meters for frame in self.reference_frames],
             'far_player_action': [frame.far_player.action for frame in self.reference_frames],
             'ball_original_box': [frame.ball.original_bounding_box for frame in self.reference_frames],
             'ball_reference_point': [frame.ball.reference_coordinate for frame in self.reference_frames],
@@ -155,10 +162,12 @@ class ReferenceCourt:
     def _create_reference_player(self, player_positions: Tuple[int, int, int, int]) -> ReferencePlayer:
         x1, y1, x2, y2 = player_positions
         original_coordinate_bottom_center = ((x1 + x2) // 2, y2)
+        player_box = BoundingBox(x1, y1, x2, y2)
         reference_coordinate = transform_coordinates([original_coordinate_bottom_center], self.inverse_homography_matrix)[0]
         reference_player = ReferencePlayer(
-            original_bounding_box=BoundingBox(x1, y1, x2, y2),
+            original_bounding_box=player_box,
             reference_coordinate=reference_coordinate,
+            height_meters=self._get_player_height(player_box),
             action=PLAYER_RUNNING,
         )
         return reference_player
@@ -214,7 +223,7 @@ class ReferenceCourt:
         hitting_ball.action = BALL_NEAR_HIT
         end_coordinate = (
             hitting_ball.reference_coordinate[0], 
-            int(hitting_player.reference_coordinate[1] - 0.5 * REFERENCE_COURT_PIXEL_TO_METER_RATIO))
+            int(hitting_player.reference_coordinate[1] - hitting_player.original_bounding_box.width_height_ratio * REFERENCE_COURT_PIXEL_TO_METER_RATIO))
         calculated_coordinates, calculated_horizontal_velocities = self._compute_horizontal_flight_path(
             start_coordinate, 
             end_coordinate, 
@@ -270,7 +279,7 @@ class ReferenceCourt:
         hitting_ball.action = BALL_FAR_HIT
         end_coordinate = (
             hitting_ball.reference_coordinate[0], 
-            int(hitting_player.reference_coordinate[1] + 0.5 * REFERENCE_COURT_PIXEL_TO_METER_RATIO))
+            int(hitting_player.reference_coordinate[1] + hitting_player.original_bounding_box.width_height_ratio * REFERENCE_COURT_PIXEL_TO_METER_RATIO))
         calculated_coordinates, calculated_horizontal_velocities = self._compute_horizontal_flight_path(
             start_coordinate, 
             end_coordinate, 
@@ -407,11 +416,13 @@ class ReferenceCourt:
             near_player = ReferencePlayer(
                 original_bounding_box=BoundingBox(*eval(row['near_player_original_box'])),
                 reference_coordinate=eval(row['near_player_reference_point']),
+                height_meters=row['near_player_height_meters'],
                 action=row['near_player_action'],
             )
             far_player = ReferencePlayer(
                 original_bounding_box=BoundingBox(*eval(row['far_player_original_box'])),
                 reference_coordinate=eval(row['far_player_reference_point']),
+                height_meters=row['far_player_height_meters'],
                 action=row['far_player_action'],
             )
             ball = ReferenceBall(
@@ -429,75 +440,69 @@ class ReferenceCourt:
         return reference_frames
 
     def draw(self, input_frames: List[np.ndarray]) -> List[np.ndarray]:
-        """
-        Draw the reference court, players, and ball on the input frames.
-        
-        Args:
-            input_frames: List of input frames
-            
-        Returns:
-            List of output frames with visualization
-        """
         reference_frames = self.load_reference_frames()
 
         output_frames = []
-        
+
+        height, width = input_frames[0].shape[:2]
+        reference_canvas_x1 = width - REFERENCE_COURT_CANVAS_WIDTH - REFERENCE_COURT_MARGIN_X
+        reference_canvas_y1 = REFERENCE_COURT_MARGIN_Y
+        side_view_canvas_x2 = width - REFERENCE_COURT_MARGIN_X
+        side_view_canvas_y2 = height - REFERENCE_COURT_MARGIN_Y
+        side_view_canvas_x1 = side_view_canvas_x2 - REFERENCE_COURT_CANVAS_DEPTH
+        side_view_canvas_y1 = side_view_canvas_y2 - SIDE_VIEW_COURT_CANVAS_HEIGHT
+
         for frame_number, frame in enumerate(input_frames):
             # Draw reference court canvas and court lines
-            frame = self._draw_canvas(frame)
-            frame = self._draw_court(frame)
+            frame = self._draw_canvas(frame, reference_canvas_x1, reference_canvas_y1, REFERENCE_COURT_CANVAS_WIDTH, REFERENCE_COURT_CANVAS_DEPTH)
+            frame = self._draw_reference_court(frame, reference_canvas_x1, reference_canvas_y1)
             
             # Draw players and ball
-            self._draw_player_coordinates(frame, reference_frames[frame_number])
-            self._draw_ball_coordinates(frame, reference_frames[frame_number].ball)    # Ball
-            
+            self._draw_reference_player_coordinates(frame, reference_frames[frame_number], reference_canvas_x1, reference_canvas_y1)
+            self._draw_reference_ball_coordinates(frame, reference_frames[frame_number].ball, reference_canvas_x1, reference_canvas_y1)    # Ball
+
+            frame = self._draw_canvas(frame, side_view_canvas_x1, side_view_canvas_y1, REFERENCE_COURT_CANVAS_DEPTH, SIDE_VIEW_COURT_CANVAS_HEIGHT)
+            frame = self._draw_side_view_court(frame, side_view_canvas_x2, side_view_canvas_y2)
+
+            self._draw_side_view_player_coordinates(frame, reference_frames[frame_number], side_view_canvas_x2, side_view_canvas_y2)
+            self._draw_side_view_ball_coordinates(frame, reference_frames[frame_number].ball, side_view_canvas_x2, side_view_canvas_y2)
+
             output_frames.append(frame)
             
         return output_frames
 
-    def _draw_player_coordinates(self, frame: np.ndarray, reference_frame: ReferenceFrame) -> None:
-        frame_width = frame.shape[1]
-        canvas_x1 = frame_width - REFERENCE_COURT_CANVAS_WIDTH - REFERENCE_COURT_MARGIN_X
-        canvas_y1 = REFERENCE_COURT_MARGIN_Y
-        canvas_y2 = REFERENCE_COURT_MARGIN_Y + REFERENCE_COURT_CANVAS_DEPTH
+    def _draw_reference_player_coordinates(self, frame: np.ndarray, reference_frame: ReferenceFrame, canvas_x1: int, canvas_y1: int) -> None:
         color_red = (0, 0, 255)
         color_blue = (255, 0, 0)
         x = int(reference_frame.near_player.reference_coordinate[0] + canvas_x1)
         y = int(reference_frame.near_player.reference_coordinate[1] + canvas_y1)
         cv2.circle(frame, (x, y), 10, color_red, -1)
-        cv2.putText(frame, f"{NEAR_PLAYER_NAME}", (canvas_x1 + 10, canvas_y2 - 15), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_red, 2, cv2.LINE_AA)
+
+        x = canvas_x1 + 10
+        y = canvas_y1 + REFERENCE_COURT_CANVAS_DEPTH - 15
+        cv2.putText(frame, f"{NEAR_PLAYER_NAME}", (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_red, 2, cv2.LINE_AA)
 
         x = int(reference_frame.far_player.reference_coordinate[0] + canvas_x1)
         y = int(reference_frame.far_player.reference_coordinate[1] + canvas_y1)
         cv2.circle(frame, (x, y), 10, color_blue, -1)
-        cv2.putText(frame, f"{FAR_PLAYER_NAME}", (canvas_x1 + 10, canvas_y1 + 25), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_blue, 2, cv2.LINE_AA)
 
-    def _draw_ball_coordinates(self, frame: np.ndarray, ball: ReferenceBall) -> None:
-        frame_width = frame.shape[1]
-        canvas_x1 = frame_width - REFERENCE_COURT_CANVAS_WIDTH - REFERENCE_COURT_MARGIN_X
-        canvas_y1 = REFERENCE_COURT_MARGIN_Y
+        x = canvas_x1 + 10
+        y = canvas_y1 + 25
+        cv2.putText(frame, f"{FAR_PLAYER_NAME}", (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_blue, 2, cv2.LINE_AA)
+
+    def _draw_reference_ball_coordinates(self, frame: np.ndarray, ball: ReferenceBall, canvas_x1: int, canvas_y1: int) -> None:
         color_green = (0, 255, 0)
         color_black = (0, 0, 0)
         x = int(ball.reference_coordinate[0] + canvas_x1)
         y = int(ball.reference_coordinate[1] + canvas_y1)
         cv2.circle(frame, (x, y), 5, color_green, -1)
 
-        cv2.putText(
-            frame, f"h: {ball.height_meters}", (x + 10, y - 5),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_black, 1, cv2.LINE_AA
-        )
-        cv2.putText(
-            frame, f"v: {get_hypotenuse(ball.horizontal_velocity, ball.vertical_velocity)}", (x + 10, y + 15),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_black, 1, cv2.LINE_AA
-        )
+        text = f"h: {ball.height_meters}"
+        cv2.putText(frame, text, (x + 10, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_black, 1, cv2.LINE_AA)
+        text = f"v: {get_hypotenuse(ball.horizontal_velocity, ball.vertical_velocity)}"
+        cv2.putText(frame, text, (x + 10, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_black, 1, cv2.LINE_AA)
 
-    def _draw_court(self, frame: np.ndarray) -> np.ndarray:
-        frame_width = frame.shape[1]
-        canvas_x1 = frame_width - REFERENCE_COURT_CANVAS_WIDTH - REFERENCE_COURT_MARGIN_X
-        canvas_y1 = REFERENCE_COURT_MARGIN_Y
-        canvas_y2 = REFERENCE_COURT_MARGIN_Y + REFERENCE_COURT_CANVAS_DEPTH
+    def _draw_reference_court(self, frame: np.ndarray, canvas_x1: int, canvas_y1: int) -> np.ndarray:
         # Draw lines
         for line in REFERENCE_COURT_LINES:
             x1 = int(REFERENCE_KEYPOINTS[line[0]][0] + canvas_x1)
@@ -522,7 +527,7 @@ class ReferenceCourt:
         # Draw net
         net_x1 = int(REFERENCE_COURT_X1 + canvas_x1)
         net_x2 = int(REFERENCE_COURT_X2 + canvas_x1)
-        net_y = int((canvas_y1 + canvas_y2) / 2)
+        net_y = int(canvas_y1 + REFERENCE_COURT_CANVAS_DEPTH / 2)
         cv2.line(frame, (net_x1, net_y), (net_x2, net_y), (255, 0, 0), 2)
 
         # Draw key points
@@ -533,23 +538,12 @@ class ReferenceCourt:
 
         return frame
 
-    def _draw_canvas(self, frame: np.ndarray) -> np.ndarray:
-        frame_width = frame.shape[1]
-        canvas_x1 = frame_width - REFERENCE_COURT_MARGIN_X - REFERENCE_COURT_CANVAS_WIDTH
-        canvas_x2 = frame_width - REFERENCE_COURT_MARGIN_X
-        canvas_y1 = REFERENCE_COURT_MARGIN_Y
-        canvas_y2 = REFERENCE_COURT_MARGIN_Y + REFERENCE_COURT_CANVAS_DEPTH
+    def _draw_canvas(self, frame: np.ndarray, x1: int, y1: int, width: int, height: int) -> np.ndarray:
         # Create a blank image with the same size as the input frame
         shapes = np.zeros_like(frame, np.uint8)
         
         # Draw a filled white rectangle for the canvas
-        cv2.rectangle(
-            shapes, 
-            (int(canvas_x1), int(canvas_y1)), 
-            (int(canvas_x2), int(canvas_y2)), 
-            (255, 255, 255), 
-            cv2.FILLED
-        )
+        cv2.rectangle(shapes, (x1, y1), (x1 + width, y1 + height), (255, 255, 255), cv2.FILLED)
         
         output_frame = frame.copy()
         
@@ -559,3 +553,62 @@ class ReferenceCourt:
         output_frame[mask] = cv2.addWeighted(frame, alpha, shapes, 1 - alpha, 0)[mask]
 
         return output_frame
+
+    def _draw_side_view_player_coordinates(self, frame: np.ndarray, reference_frame: ReferenceFrame, canvas_x2: int, canvas_y2: int) -> None:
+        color_red = (0, 0, 255)
+        color_blue = (255, 0, 0)
+        x = int(canvas_x2 - reference_frame.near_player.reference_coordinate[1])
+        y1 = int(canvas_y2 - 10 - reference_frame.near_player.height_meters * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
+        y2 = int(canvas_y2 - 10)
+        cv2.line(frame, (x, y1), (x, y2), color_red, 2)
+
+        x = canvas_x2 - REFERENCE_COURT_CANVAS_DEPTH + 10
+        y = canvas_y2 - SIDE_VIEW_COURT_CANVAS_HEIGHT + 25
+        cv2.putText(frame, f"{NEAR_PLAYER_NAME}", (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_red, 2, cv2.LINE_AA)
+
+        x = int(canvas_x2 - reference_frame.far_player.reference_coordinate[1])
+        y1 = int(canvas_y2 - 10 - reference_frame.far_player.height_meters * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
+        y2 = int(canvas_y2 - 10)
+        cv2.line(frame, (x, y1), (x, y2), color_blue, 2)
+
+        x = canvas_x2 - REFERENCE_COURT_CANVAS_DEPTH // 2 + 10
+        y = canvas_y2 - SIDE_VIEW_COURT_CANVAS_HEIGHT + 25
+        cv2.putText(frame, f"{FAR_PLAYER_NAME}", (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_blue, 2, cv2.LINE_AA)
+
+    def _draw_side_view_ball_coordinates(self, frame: np.ndarray, ball: ReferenceBall, canvas_x2:int, canvas_y2: int) -> None:
+        color_green = (0, 255, 0)
+        color_black = (0, 0, 0)
+        x = int(canvas_x2 - ball.reference_coordinate[1])
+        y = int(canvas_y2 - 10 - ball.height_meters * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
+        cv2.circle(frame, (x, y), 5, color_green, -1)
+
+        text = f"h: {ball.height_meters}"
+        cv2.putText(frame, text, (x + 10, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_black, 1, cv2.LINE_AA)
+
+        text = f"v: {get_hypotenuse(ball.horizontal_velocity, ball.vertical_velocity)}"
+        cv2.putText(frame, text, (x + 10, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_black, 1, cv2.LINE_AA)
+
+    def _draw_side_view_court(self, frame: np.ndarray, canvas_x2: int, canvas_y2: int) -> np.ndarray:
+        color_black = (0, 0, 0)
+        # Draw side line
+        x1 = int(canvas_x2 - (RUN_BACK_DEPTH + 2 * HALF_COURT_DEPTH) * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
+        y = int(canvas_y2 - 10)
+        x2 = int(canvas_x2 - RUN_BACK_DEPTH * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
+        cv2.line(frame, (x1, y), (x2, y), color_black, 2)
+
+        # Draw service lines
+        x = int(canvas_x2 - (RUN_BACK_DEPTH + HALF_COURT_DEPTH + SERVICE_LINE_DEPTH) * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
+        y1 = int(canvas_y2 - 12)
+        y2 = int(canvas_y2 - 10)
+        cv2.line(frame, (x, y1), (x, y2), color_black, 2)
+
+        x = int(canvas_x2 - (RUN_BACK_DEPTH + NO_MANS_LAND_DEPTH) * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
+        cv2.line(frame, (x, y1), (x, y2), color_black, 2)
+
+        # Draw net
+        net_x = canvas_x2 - REFERENCE_COURT_CANVAS_DEPTH // 2
+        net_y1 = int(y - NET_CENTRE_HEIGHT * REFERENCE_COURT_PIXEL_TO_METER_RATIO)
+        net_y2 = y
+        cv2.line(frame, (net_x, net_y1), (net_x, net_y2), color_black, 2)
+
+        return frame

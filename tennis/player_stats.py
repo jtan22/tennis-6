@@ -12,7 +12,7 @@ from .constants import (
     PLAYER_HITTING, 
     PLAYER_STATS_MARGIN_X, 
     PLAYER_STATS_MARGIN_Y, 
-    REFERENCE_COURT_METER_TO_PIXEL_RATIO, 
+    REFERENCE_COURT_PIXEL_TO_METER_RATIO, 
     PLAYER_STATS_WIDTH,
     PLAYER_STATS_HEIGHT,
     REFERENCE_COURT_CANVAS_DEPTH,
@@ -87,11 +87,11 @@ class PlayerStats():
                     served = True
 
             near_player_distance_pixels = get_distance_between_points(reference_frames[i].near_player.reference_coordinate, reference_frames[i - 1].near_player.reference_coordinate)
-            player_stats['near_player_last_distance'] = round(near_player_distance_pixels * REFERENCE_COURT_METER_TO_PIXEL_RATIO, 2)
+            player_stats['near_player_last_distance'] = round(near_player_distance_pixels / REFERENCE_COURT_PIXEL_TO_METER_RATIO, 2)
             player_stats['near_player_total_distance'] = round(player_stats['near_player_total_distance'] + player_stats['near_player_last_distance'], 2)
 
             far_player_distance_pixels = get_distance_between_points(reference_frames[i].far_player.reference_coordinate, reference_frames[i - 1].far_player.reference_coordinate)
-            player_stats['far_player_last_distance'] = round(far_player_distance_pixels * REFERENCE_COURT_METER_TO_PIXEL_RATIO, 2)
+            player_stats['far_player_last_distance'] = round(far_player_distance_pixels / REFERENCE_COURT_PIXEL_TO_METER_RATIO, 2)
             player_stats['far_player_total_distance'] = round(player_stats['far_player_total_distance'] + player_stats['far_player_last_distance'], 2)
 
             net_clearance = self._get_net_clearance(last_ball, current_ball)
