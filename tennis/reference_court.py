@@ -452,24 +452,60 @@ class ReferenceCourt:
         side_view_canvas_x1 = side_view_canvas_x2 - REFERENCE_COURT_CANVAS_DEPTH
         side_view_canvas_y1 = side_view_canvas_y2 - SIDE_VIEW_COURT_CANVAS_HEIGHT
 
+        far_hits = []
+        near_bounces = []
+        near_hits = []
+        far_bounces = []
+
         for frame_number, frame in enumerate(input_frames):
             # Draw reference court canvas and court lines
             frame = self._draw_canvas(frame, reference_canvas_x1, reference_canvas_y1, REFERENCE_COURT_CANVAS_WIDTH, REFERENCE_COURT_CANVAS_DEPTH)
             frame = self._draw_reference_court(frame, reference_canvas_x1, reference_canvas_y1)
             
+            reference_frame = reference_frames[frame_number]
             # Draw players and ball
-            self._draw_reference_player_coordinates(frame, reference_frames[frame_number], reference_canvas_x1, reference_canvas_y1)
-            self._draw_reference_ball_coordinates(frame, reference_frames[frame_number].ball, reference_canvas_x1, reference_canvas_y1)    # Ball
+            self._draw_reference_player_coordinates(frame, reference_frame, reference_canvas_x1, reference_canvas_y1)
+            self._draw_reference_ball_coordinates(frame, reference_frame.ball, reference_canvas_x1, reference_canvas_y1)    # Ball
+
+            if reference_frame.ball.action == BALL_FAR_HIT:
+                far_hits.append(reference_frame.ball)
+            elif reference_frame.ball.action == BALL_NEAR_BOUNCE:
+                near_bounces.append(reference_frame.ball)
+            elif reference_frame.ball.action == BALL_NEAR_HIT:
+                near_hits.append(reference_frame.ball)
+            elif reference_frame.ball.action == BALL_FAR_BOUNCE:
+                far_bounces.append(reference_frame.ball)
+
+            self._draw_reference_ball_history(frame, far_hits, near_bounces, near_hits, far_bounces, reference_canvas_x1, reference_canvas_y1)
 
             frame = self._draw_canvas(frame, side_view_canvas_x1, side_view_canvas_y1, REFERENCE_COURT_CANVAS_DEPTH, SIDE_VIEW_COURT_CANVAS_HEIGHT)
             frame = self._draw_side_view_court(frame, side_view_canvas_x2, side_view_canvas_y2)
 
-            self._draw_side_view_player_coordinates(frame, reference_frames[frame_number], side_view_canvas_x2, side_view_canvas_y2)
-            self._draw_side_view_ball_coordinates(frame, reference_frames[frame_number].ball, side_view_canvas_x2, side_view_canvas_y2)
+            self._draw_side_view_player_coordinates(frame, reference_frame, side_view_canvas_x2, side_view_canvas_y2)
+            self._draw_side_view_ball_coordinates(frame, reference_frame.ball, side_view_canvas_x2, side_view_canvas_y2)
 
             output_frames.append(frame)
             
         return output_frames
+
+    def _draw_reference_ball_history(self, 
+            frame: np.ndarray, 
+            far_hits: List[ReferenceBall], 
+            near_bounces: List[ReferenceBall], 
+            near_hits: List[ReferenceBall],
+            far_bounces: List[ReferenceBall], 
+            canvas_x1: int, 
+            canvas_y1: int) -> None:
+        color_red = (0, 0, 255)
+        color_blue = (255, 0, 0)
+        for ball in far_hits:
+            cv2.circle(frame, (canvas_x1 + ball.reference_coordinate[0], canvas_y1 + ball.reference_coordinate[1]), 3, color_blue, -1)
+        for ball in near_bounces:
+            cv2.circle(frame, (canvas_x1 + ball.reference_coordinate[0], canvas_y1 + ball.reference_coordinate[1]), 3, color_blue, -1)
+        for ball in near_hits:
+            cv2.circle(frame, (canvas_x1 + ball.reference_coordinate[0], canvas_y1 + ball.reference_coordinate[1]), 3, color_red, -1)
+        for ball in far_bounces:
+            cv2.circle(frame, (canvas_x1 + ball.reference_coordinate[0], canvas_y1 + ball.reference_coordinate[1]), 3, color_red, -1)
 
     def _draw_reference_player_coordinates(self, frame: np.ndarray, reference_frame: ReferenceFrame, canvas_x1: int, canvas_y1: int) -> None:
         color_red = (0, 0, 255)
