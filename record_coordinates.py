@@ -40,12 +40,12 @@ def main():
     while True:
         key = cv2.waitKey(0) & 0xFF
 
-        if key == ord('q'):  # Press 'q' to quit
+        if key == ord('q') or key == 119:  # Press 'q' to quit
             break
-        elif key == ord('a') or key == 81:  # 'a' or left arrow key (81) for previous frame
+        elif key == ord('a') or key == 81 or key == 2:  # 'a' or left arrow key (81) for previous frame
             current_frame_index = max(0, current_frame_index - 1)
             show_frame()
-        elif key == ord('d') or key == 83:  # 'd' or right arrow key (83) for next frame
+        elif key == ord('d') or key == 83 or key == 3:  # 'd' or right arrow key (83) for next frame
             current_frame_index = min(len(coordinates) - 1, current_frame_index + 1)
             show_frame()
 

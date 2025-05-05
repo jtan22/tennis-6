@@ -9,4 +9,3 @@ class ReferencePlayer:
     original_bounding_box: BoundingBox
     reference_coordinate: Tuple[int, int]
     action: int
-    net_clearance: float
