@@ -1,6 +1,6 @@
 # Tennis-6
 
-Welcome to the **Tennis-6** repository! This project is aimed at [briefly describe the purpose or use case of your project, e.g., "developing predictive models for tennis match outcomes using data analysis and machine learning"].
+Welcome to the **Tennis-6** repository! This project is aimed at [briefly describe the purpose or use case of your project, e.g., "developing predictive models for tennis match outcomes using data analysis and machine learning"]. [sample court image](https://github.com/jtan22/tennis-6/blob/main/images/sample-court.png)
 
 ## Table of Contents
 - [Overview](#overview)
