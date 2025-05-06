@@ -126,7 +126,6 @@ class ReferenceCourt:
                 i += 1
                 continue
                 
-            print(f'Processing hit and bounce: {hits_and_bounces[i]} - {hits_and_bounces[i + 1]}')
             frame_count = hits_and_bounces_2 - hits_and_bounces_1
 
             hit_bounce_pattern = i % 4
@@ -367,7 +366,6 @@ class ReferenceCourt:
         player_line_width = (player_to_top_base_line / court_height) * base_line_diff + top_base_line_width
         player_width_meters = (player_box.width / player_line_width) * DOUBLES_LINE_WIDTH
         player_height_meters = round((player_box.height / player_box.width) * player_width_meters, 2)
-        print(f'Player height: {player_height_meters} m')
         return player_height_meters
 
     def _compute_vertical_flight_path_hit(self, frame_count: int, fps: float, initial_height: float) -> Tuple[List[float], List[float]]:

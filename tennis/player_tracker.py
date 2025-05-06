@@ -112,7 +112,6 @@ class PlayerTracker:
         else:
             far_player_id = first_2_track_ids[0]
             near_player_id = first_2_track_ids[1]
-        print(f'Near player: {near_player_id}, far player: {far_player_id}')
         return near_player_id, far_player_id
 
     # Draw bounding boxes on the frames
