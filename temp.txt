@@ -1,31 +1,17 @@
-def simulate_to_height(initial_velocity, mass, rho, cd, area, target_height, dt):
-    """
-    Simulates the upward motion of an object with quadratic air drag until it reaches a target height.
-
-    Args:
-        initial_velocity (float): Initial upward velocity (m/s).
-        mass (float): Mass of the object (kg).
-        rho (float): Air density (kg/m^3).
-        cd (float): Drag coefficient (dimensionless).
-        area (float): Cross-sectional area (m^2).
-        target_height (float): The height at which the time was measured (m).
-        dt (float): Time step for the simulation (s).
-
-    Returns:
-        float: Time taken to reach the target height (s), or None if it doesn't reach or simulation fails.
-    """
-    g = 9.81  # Acceleration due to gravity (m/s^2)
-    t = 0.0
-    y = 0.0
-    v = initial_velocity
-    while y < target_height and v >= 0: # Continue until target height is reached or velocity becomes negative
-        drag_force = 0.5 * rho * cd * area * v**2
-        acceleration = -g - (drag_force / mass)
-        v += acceleration * dt
-        y += v * dt
-        t += dt
-        if t > 1000: # Safety break
-            return None
-        if v < 0 and y < target_height: # Overshot and falling back
-            return None
-    return t
+Refined keypoints count: 6
+Refined keypoints count: 6
+Refined keypoints count: 5
+Processed 1800 frames, took [61.96] seconds
+Refined keypoints count: 5
+Refined keypoints count: 6
+Refined keypoints count: 5
+Refined keypoints count: 4
+Refined keypoints count: 5
+Refined keypoints count: 6
+Refined keypoints count: 5
+Refined keypoints count: 4
+Refined keypoints count: 5
+Refined keypoints count: 5
+Refined keypoints count: 4
+Refined keypoints count: 4
+Refined keypoints count: 6

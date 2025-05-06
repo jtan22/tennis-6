@@ -1,7 +1,7 @@
 import torch
 import torchvision.transforms as transforms
 import torchvision.models as models
-from torchvision.models import ResNet50_Weights
+from torchvision.models import ResNet50_Weights, ResNet
 import cv2
 import pandas as pd
 import numpy as np
@@ -16,25 +16,24 @@ logger = logging.getLogger(__name__)
 
 class CourtLineDetector:
     
-    def __init__(self):
+    def __init__(self, model_path: str):
         self.court_keypoints_path = 'analysis/court_keypoints.csv'
+        self.device, self.model = self._initialise_model(model_path)
+        self.transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize((RESNET50_PRE_TRAINED_MODEL_IMAGE_SIZE, RESNET50_PRE_TRAINED_MODEL_IMAGE_SIZE)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
 
-    def detect_keypoints(self, image: np.ndarray, model_path: str) -> None:
-        predicted_keypoints = self._predict_keypoints(image, model_path)
-        refined_predicted_keypoints = self._refine_keypoints(image, predicted_keypoints)
-        homographied_keypoints = self._homograph_keypoints(refined_predicted_keypoints)
-        refined_homographied_keypoints = self._refine_keypoints(image, homographied_keypoints)
-        court_keypoints = self._homograph_keypoints(refined_homographied_keypoints)
-        df = pd.DataFrame({
-            'predicted_keypoints': predicted_keypoints,
-            'refined_predicted_keypoints': refined_predicted_keypoints,
-            'homographied_keypoints': homographied_keypoints,
-            'refined_homographied_keypoints': refined_homographied_keypoints,
-            'court_keypoints': court_keypoints
-        })
-        df.to_csv(self.court_keypoints_path, index=False)
+    def _initialise_keypoints(self):
+        self.predicted_keypoints = []
+        self.refined_predicted_keypoints = []
+        self.homographied_keypoints = []
+        self.refined_homographied_keypoints = []
+        self.court_keypoints = []
 
-    def _predict_keypoints(self, image: np.ndarray, model_path: str) -> List[Tuple[int, int]]:
+    def _initialise_model(self, model_path: str) -> Tuple[str, ResNet]:
         # Set up device
         device = 'mps' if torch.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu'
         model = models.resnet50(weights=ResNet50_Weights.DEFAULT)
@@ -43,14 +42,25 @@ class CourtLineDetector:
         # Load the trained weights
         model.load_state_dict(torch.load(model_path, map_location=device))
         model.to(device)
+        return device, model
 
-        transform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.Resize((RESNET50_PRE_TRAINED_MODEL_IMAGE_SIZE, RESNET50_PRE_TRAINED_MODEL_IMAGE_SIZE)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
+    def detect_keypoints(self, image: np.ndarray) -> None:
+        self._initialise_keypoints()
+        self.predicted_keypoints = self._predict_keypoints(image)
+        self.refined_predicted_keypoints = self._refine_keypoints(image, self.predicted_keypoints)
+        self.homographied_keypoints = self._homograph_keypoints(self.refined_predicted_keypoints)
+        self.refined_homographied_keypoints = self._refine_keypoints(image, self.homographied_keypoints)
+        self.court_keypoints = self._homograph_keypoints(self.refined_homographied_keypoints)
+        df = pd.DataFrame({
+            'predicted_keypoints': self.predicted_keypoints,
+            'refined_predicted_keypoints': self.refined_predicted_keypoints,
+            'homographied_keypoints': self.homographied_keypoints,
+            'refined_homographied_keypoints': self.refined_homographied_keypoints,
+            'court_keypoints': self.court_keypoints
+        })
+        df.to_csv(self.court_keypoints_path, index=False)
 
+    def _predict_keypoints(self, image: np.ndarray) -> List[Tuple[int, int]]:
         # Convert BGR to RGB for processing
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         # image_rgb is of shape (h, w, 3)
@@ -61,7 +71,7 @@ class CourtLineDetector:
             # After the transform, the image tensor will be of shape (3, 224, 224)
             # unsequeeze(0) adds a batch dimension, so the shape becomes (1, 3, 224, 224)
             # and the model expects input of shape (batch_size, 3, 224, 224)
-            image_tensor = transform(image_rgb).unsqueeze(0).to(device) # type: ignore
+            image_tensor = self.transform(image_rgb).unsqueeze(0).to(self.device) # type: ignore
         except Exception as e:
             logger.error(f"Error during image transformation: {e}")
             raise
@@ -70,7 +80,7 @@ class CourtLineDetector:
         # Disable gradient calculation in PyTorch to save memory and computation
         # since we are only doing inference
         with torch.no_grad():
-            outputs = model(image_tensor)
+            outputs = self.model(image_tensor)
         
         # Process outputs
         # The output tensor will be of shape (1, 28), squeeze() removes the batch 
@@ -231,3 +241,22 @@ class CourtLineDetector:
             output_frames.append(frame_with_keypoints)
             
         return output_frames
+
+    def draw_all_keypoints(self, image: np.ndarray) -> None:
+        blue = (255, 0, 0)
+        green = (0, 255, 0)
+        red = (0, 0, 255)
+        yellow = (0, 255, 255)
+        for keypoint in self.refined_predicted_keypoints:
+            if keypoint is not None:
+                cv2.circle(image, keypoint, 5, blue, -1)
+        for keypoint in self.homographied_keypoints:
+            if keypoint is not None:
+                cv2.circle(image, keypoint, 5, green, -1)
+        for keypoint in self.refined_homographied_keypoints:
+            if keypoint is not None:
+                cv2.circle(image, keypoint, 5, red, -1)
+        for keypoint in self.court_keypoints:
+            if keypoint is not None:
+                cv2.circle(image, keypoint, 5, yellow, -1)
+    
