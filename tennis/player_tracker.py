@@ -4,22 +4,26 @@ import cv2
 import pickle
 import torch
 import pandas as pd
+
 from .utils import get_bottom_line_center_point
 
 class PlayerTracker:
 
-    def __init__(self):
+    def __init__(self, model_path: str):
         self.stub_path = 'tracker_stubs/player_detections.pkl'
         self.player_positions_path = 'analysis/player_positions.csv'
+        self.model = self._initialise_model(model_path)
 
-    # Detect persons in a list of frames
-    def dectect_person_positions(self, frames, model_path) -> None:
+    def _initialise_model(self, model_path: str) -> YOLO:
         model = YOLO(model_path)
         model.to(torch.device('mps' if torch.mps.is_available() else 'cuda' if torch.cuda.is_available else 'cpu'))
+        return model
 
+    # Detect persons in a list of frames
+    def dectect_person_positions(self, frames) -> None:
         person_positions = []
         for frame in frames:
-            person_positions.append(self._detect_person_positions_per_frame(frame, model))
+            person_positions.append(self.detect_person_positions_per_frame(frame))
 
         # Save frames to stub
         with open(self.stub_path, 'wb') as f:
@@ -29,21 +33,24 @@ class PlayerTracker:
     # Returns a dictionary with track IDs as keys and bounding boxes as values
     # Bounding box format: [x1, y1, x2, y2]
     # x1, y1 are the top-left coordinates and x2, y2 are the bottom-right coordinates
-    def _detect_person_positions_per_frame(self, frame, model):
+    def detect_person_positions_per_frame(self, frame) -> Dict[int, Tuple[int, int, int, int]]:
         # Perform tracking on the frame
         # The model will return a list of results, we take the first one
-        results = model.track(frame, persist=True)[0]
+        results = self.model.track(frame, persist=True, verbose=False)[0]
         # The 'names' attribute contains a dictionary mapping class IDs to class names
         class_id_name_dict = results.names
         person_positions_per_frame = {}
         # The results will contain the bounding boxes, track IDs, and class IDs
         for box in results.boxes: # type: ignore
+            if box.id is None:
+                continue
             # The track IDs are stored in the 'id' attribute of the boxes
             track_id = int(box.id.tolist()[0]) # type: ignore
             # The bounding boxes are stored in the 'xyxy' attribute of the boxes
             # The 'xyxy' attribute contains a list of lists, where each inner list
             # contains the coordinates of the bounding box in the format [x1, y1, x2, y2]
             bounding_box = box.xyxy.tolist()[0]
+            bounding_box = [int(x) for x in bounding_box]
             # The class IDs are stored in the 'cls' attribute of the boxes
             class_id = box.cls.tolist()[0]
             class_name = class_id_name_dict[class_id]
@@ -127,3 +134,11 @@ class PlayerTracker:
             cv2.rectangle(frame, (x1, y1), (x2, y2), color_blue, 2)
             output_frames.append(frame)
         return output_frames
+
+    def draw_positions(self, frame, positions: Dict[int, Tuple[int, int, int, int]]) -> None:
+        color_blue = (255, 0, 0)
+        for id, bounding_box in positions.items():
+            x1, y1, x2, y2 = bounding_box
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color_blue, 2)
+            cv2.putText(frame, f"{id}", (x1, y1 - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_blue, 2, cv2.LINE_AA)
+

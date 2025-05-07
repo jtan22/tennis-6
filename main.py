@@ -39,25 +39,25 @@ def main():
     if DETECT_PERSON_POSITIONS:
         logger.info('Detecting person positions...')
         start_time_mono = time.monotonic()
-        PlayerTracker().dectect_person_positions(input_frames, PLAYER_TRACKER_MODEL_PATH)
+        PlayerTracker(PLAYER_TRACKER_MODEL_PATH).dectect_person_positions(input_frames)
         logger.info(f'Detected person positions in [{(time.monotonic() - start_time_mono):.2f}] seconds') 
 
     if DETECT_BALL_POSITIONS:
         logger.info('Detecting ball positions...')
         start_time_mono = time.monotonic()
-        BallTracker().detect_ball_positions(input_frames, BALL_TRACKER_MODEL_PATH)
+        BallTracker(BALL_TRACKER_MODEL_PATH).detect_ball_positions(input_frames)
         logger.info(f'Detected person positions in [{(time.monotonic() - start_time_mono):.2f}] seconds') 
 
     if SYNTHESIZE_BALL_POSITIONS:
         logger.info('Synthesizing ball positions...')
         start_time_mono = time.monotonic()
-        BallTracker().synthesize_ball_positions()
+        BallTracker(BALL_TRACKER_MODEL_PATH).synthesize_ball_positions()
         logger.info(f'Detected ball positions in [{(time.monotonic() - start_time_mono):.2f}] seconds') 
 
     if FIND_BALL_HITS_AND_BOUNCES:
         logger.info('Finding ball hits and bounces...')
         start_time_mono = time.monotonic()
-        BallAnalyser().find_ball_hits_and_bounces(fps, BallTracker().load_ball_positions_df())
+        BallAnalyser().find_ball_hits_and_bounces(fps, BallTracker(BALL_TRACKER_MODEL_PATH).load_ball_positions_df())
         logger.info(f'Found ball hits and bounces in [{(time.monotonic() - start_time_mono):.2f}] seconds') 
 
     if DETECT_KEYPOINTS:
@@ -69,7 +69,7 @@ def main():
     if FIND_PLAYER_POSITIONS:
         logger.info('Finding player positions...')
         start_time_mono = time.monotonic()
-        PlayerTracker().find_player_positions(CourtLineDetector(COURT_LINE_DETECTOR_MODEL_PATH).load_court_keypoints())
+        PlayerTracker(PLAYER_TRACKER_MODEL_PATH).find_player_positions(CourtLineDetector(COURT_LINE_DETECTOR_MODEL_PATH).load_court_keypoints())
         logger.info(f'Found player positions in [{(time.monotonic() - start_time_mono):.2f}] seconds') 
 
     if COMPUTE_REFERENCE_COORDINATES:
@@ -77,8 +77,8 @@ def main():
         start_time_mono = time.monotonic()
         ReferenceCourt().compute_reference_coordinates(
             CourtLineDetector(COURT_LINE_DETECTOR_MODEL_PATH).load_court_keypoints(),
-            *PlayerTracker().load_player_positions(), 
-            BallTracker().load_complete_ball_positions(), 
+            *PlayerTracker(PLAYER_TRACKER_MODEL_PATH).load_player_positions(), 
+            BallTracker(BALL_TRACKER_MODEL_PATH).load_complete_ball_positions(), 
             BallAnalyser().load_ball_hits_and_bounces(),
             fps)
         logger.info(f'Computed reference coordinates in [{(time.monotonic() - start_time_mono):.2f}] seconds') 
@@ -92,8 +92,8 @@ def main():
     if DRAW_FRAMES:
         logger.info('Drawing player, ball, keypoints, reference court and player stats on the video...')
         start_time_mono = time.monotonic()
-        output_frames = PlayerTracker().draw(input_frames)
-        output_frames = BallTracker().draw(output_frames)
+        output_frames = PlayerTracker(PLAYER_TRACKER_MODEL_PATH).draw(input_frames)
+        output_frames = BallTracker(BALL_TRACKER_MODEL_PATH).draw(output_frames)
         output_frames = CourtLineDetector(COURT_LINE_DETECTOR_MODEL_PATH).draw(output_frames)
         output_frames = ReferenceCourt().draw(output_frames)
         output_frames = PlayerStats().draw(output_frames)

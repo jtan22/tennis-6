@@ -1,6 +1,5 @@
 from csv import Error
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -15,17 +14,16 @@ from .bounding_box import BoundingBox
 
 class BallTracker:
     
-    def __init__(self):
+    def __init__(self, model_path: str):
         self.stub_path = 'tracker_stubs/ball_detections.pkl'
         self.ball_positions_path = 'analysis/ball_positions.csv'
+        self.model = YOLO(model_path)
+        self.model.to('mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu')
         
-    def detect_ball_positions(self, frames: List[np.ndarray], model_path) -> None:
-        model = YOLO(model_path)
-        model.to('mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu')
-
+    def detect_ball_positions(self, frames: List[np.ndarray]) -> None:
         ball_positions = []
         for i, frame in enumerate(frames):
-            positions = self._detect_ball_positions_per_frame(frame, model)
+            positions = self.detect_ball_positions_per_frame(frame)
             ball_positions.append(positions)
 
         with open(self.stub_path, 'wb') as f:
@@ -38,12 +36,12 @@ class BallTracker:
         except (FileNotFoundError, pickle.PickleError, EOFError) as e:
             raise Error(f"Error loading stub file: {e}")
 
-    def _detect_ball_positions_per_frame(self, frame: np.ndarray, model) -> Dict[int, Tuple[int, int, int, int]]:
+    def detect_ball_positions_per_frame(self, frame: np.ndarray) -> Dict[int, Tuple[int, int, int, int]]:
         if frame is None or frame.size == 0:
             raise ValueError("Frame is empty or invalid")
 
         try:
-            results = model.predict(frame, conf=0.15)[0]
+            results = self.model.predict(frame, conf=0.15, verbose=False)[0]
             ball_positions = {}            
             for i, box in enumerate(results.boxes, start=1): # type: ignore
                 # Convert to list and round to integer coordinates
@@ -360,4 +358,11 @@ class BallTracker:
             output_frames.append(frame_copy)
             
         return output_frames
+
+    def draw_positions(self, frame: np.ndarray, positions: Dict[int, Tuple[int, int, int, int]]) -> None:
+        color_green = (0, 255, 0)
+        for id, bounding_box in positions.items():
+            x1, y1, x2, y2 = bounding_box
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color_green, 2)
+            cv2.putText(frame, f"{id}", (x1, y1 - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color_green, 2, cv2.LINE_AA)
     
