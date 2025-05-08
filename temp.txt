@@ -1,17 +1,52 @@
-Refined keypoints count: 6
-Refined keypoints count: 6
-Refined keypoints count: 5
-Processed 1800 frames, took [61.96] seconds
-Refined keypoints count: 5
-Refined keypoints count: 6
-Refined keypoints count: 5
-Refined keypoints count: 4
-Refined keypoints count: 5
-Refined keypoints count: 6
-Refined keypoints count: 5
-Refined keypoints count: 4
-Refined keypoints count: 5
-Refined keypoints count: 5
-Refined keypoints count: 4
-Refined keypoints count: 4
-Refined keypoints count: 6
+court_ranges: [
+    (86, 400), 
+    (480, 654), 
+    (730, 916), 
+    (986, 1052), 
+    (1324, 1918), 
+    (2191, 2478), 
+    (2520, 2780), 
+    (2831, 2942), 
+    (3041, 3338), 
+    (3384, 3494), 
+    (3570, 4277), 
+    (4327, 4475), 
+    (4562, 4749), 
+    (4849, 5092), 
+    (5158, 5207), 
+    (5222, 5471), 
+    (5577, 5773), 
+    (5935, 6032), 
+    (6111, 6860), 
+    (6933, 7034), 
+    (7073, 7456), 
+    (7515, 7728), 
+    (8029, 8259), 
+    (8342, 8731), 
+    (8776, 9293), 
+    (9379, 9946), 
+    (10032, 10723), 
+    (10840, 10963)
+]
+
+court_ranges: [
+    (86, 400), 
+    (480, 654), 
+    (730, 916), 
+    (986, 1052), 
+    (1324, 1918), 
+    (2191, 2478), 
+    (2520, 2780), 
+    (2831, 2942), 
+    (3041, 3338), 
+    (3384, 3494), 
+    (3570, 4277), 
+    (4327, 4475), 
+    (4562, 4749), 
+    (4849, 5092), 
+    (5158, 5207), 
+    (5222, 5471), 
+    (5577, 5773), 
+    (5935, 6032), 
+    (6111, 6860), 
+    (6933, 7034), (7073, 7456), (7515, 7728), (8029, 8259), (8342, 8731), (8776, 9293), (9379, 9946), (10032, 10723), (10840, 10963)]

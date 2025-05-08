@@ -1,9 +1,11 @@
 import cv2
 import logging
 import time
+from networkx import jaccard_coefficient
 import numpy as np
 import pandas as pd
-from typing import Dict, Tuple
+from collections import deque
+from typing import Dict, List, Tuple
 from tennis.court_line_detector import CourtLineDetector
 from tennis.player_tracker import PlayerTracker
 from tennis.ball_tracker import BallTracker
@@ -18,9 +20,50 @@ COURT_LINE_DETECTOR_MODEL_PATH  = 'models/keypoints/keypoints_model_resnet50_epo
 KEY_DATA_PATH                   = 'analysis/key_data.csv'
 PLAYER_TRACKER_MODEL_PATH       = 'yolov8x'
 BALL_TRACKER_MODEL_PATH         = 'models/ball/train-5l6u-10-64/weights/last-378-213.pt'
+FPS = 25
 
 def main():
-    collect_key_data()
+
+    COLLECT_KEY_DATA = False
+    ANALYSE_KEY_DTAT = True
+
+    if COLLECT_KEY_DATA:
+        collect_key_data()
+
+    if ANALYSE_KEY_DTAT:
+        analyse_key_data()
+
+def analyse_key_data():
+    df = pd.read_csv(KEY_DATA_PATH)
+    keypoints_counts = df['keypoints_count'].to_list()
+    person_positions = [eval(x) for x in df['person_positions'].to_list()]
+    ball_positions = [eval(x) for x in df['ball_positions'].to_list()]
+    court_ranges = find_frame_ranges_with_court(keypoints_counts)
+    print(f'court_ranges: {court_ranges}')
+
+def find_frame_ranges_with_court(keypoints_counts: List[int]) -> List[Tuple[int, int]]:
+    court_ranges = []
+    last_10: deque[bool] = deque([False] * 10, maxlen=10)
+    in_range = False
+    range_start = 0
+    range_end = 0
+    for i in range(len(keypoints_counts)):
+        court_detected = keypoints_counts[i] > 2
+        last_10.append(court_detected)
+        if in_range and last_10.count(False) >= 8:
+            first_false_index = next(j for j, value in enumerate(last_10) if not value)
+            range_end = i - 10 + first_false_index
+            court_ranges.append((range_start, range_end))
+            in_range = False
+        elif not in_range and last_10.count(True) >= 8:
+            first_true_index = next(j for j, value in enumerate(last_10) if value)
+            range_start = i - 10 + first_true_index + 1
+            in_range = True
+    if in_range:
+        court_ranges.append((range_start, len(keypoints_counts) - 1))
+
+
+    return court_ranges
 
 def collect_key_data():
     logger.info('Start collecting key data...')
@@ -36,7 +79,7 @@ def collect_key_data():
 
     court_line_detector = CourtLineDetector(COURT_LINE_DETECTOR_MODEL_PATH)
     player_tracker = PlayerTracker(PLAYER_TRACKER_MODEL_PATH)
-    ball_tracker = BallTracker(BALL_TRACKER_MODEL_PATH)
+ball_tracker = BallTracker(BALL_TRACKER_MODEL_PATH)
     key_data = []
     start_time_mono = time.monotonic()
     i = 0
