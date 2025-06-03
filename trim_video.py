@@ -79,7 +79,7 @@ def collect_key_data():
 
     court_line_detector = CourtLineDetector(COURT_LINE_DETECTOR_MODEL_PATH)
     player_tracker = PlayerTracker(PLAYER_TRACKER_MODEL_PATH)
-ball_tracker = BallTracker(BALL_TRACKER_MODEL_PATH)
+    ball_tracker = BallTracker(BALL_TRACKER_MODEL_PATH)
     key_data = []
     start_time_mono = time.monotonic()
     i = 0
